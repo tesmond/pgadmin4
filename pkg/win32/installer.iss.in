@@ -36,8 +36,8 @@ ArchitecturesInstallIn64BitMode={#MyAppArchitecturesMode}
 AllowNoIcons=yes
 WizardImageFile=sidebar.bmp
 MinVersion={#MinimumWindowsVer}
-SignTool=pgAdminSigntool
-SignedUninstaller=yes
+; SignTool=pgAdminSigntool
+SignedUninstaller=no
 CloseApplications=yes
 
 [Languages]

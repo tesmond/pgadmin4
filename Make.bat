@@ -52,11 +52,12 @@ REM Main build sequence Ends
 
 :SET_ENVIRONMENT
     ECHO Configuring the environment...
-    IF "%PGADMIN_PYTHON_DIR%" == ""   SET "PGADMIN_PYTHON_DIR=C:\Python313"
+    IF "%PGADMIN_PYTHON_DIR%" == ""   SET "PGADMIN_PYTHON_DIR=C:\Users\tesmo\code\projects\pgadmin4\.venv"
     IF "%PGADMIN_KRB5_DIR%" == ""     SET "PGADMIN_KRB5_DIR=C:\Program Files\MIT\Kerberos"
-    IF "%PGADMIN_POSTGRES_DIR%" == "" SET "PGADMIN_POSTGRES_DIR=C:\Program Files\PostgreSQL\17"
+    IF "%PGADMIN_POSTGRES_DIR%" == "" SET "PGADMIN_POSTGRES_DIR=C:\Program Files\PostgreSQL\18"
+    
     IF "%PGADMIN_INNOTOOL_DIR%" == "" SET "PGADMIN_INNOTOOL_DIR=C:\Program Files (x86)\Inno Setup 6"
-    IF "%PGADMIN_VCREDIST_DIR%" == "" SET "PGADMIN_VCREDIST_DIR=C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Redist\MSVC\14.40.33807"
+    IF "%PGADMIN_VCREDIST_DIR%" == "" SET "PGADMIN_VCREDIST_DIR=C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Redist\MSVC\14.42.34433"
     IF "%PGADMIN_VCREDIST_FILE%" == "" SET "PGADMIN_VCREDIST_FILE=vc_redist.x64.exe"
     IF "%PGADMIN_SIGNTOOL_DIR%" == "" SET "PGADMIN_SIGNTOOL_DIR=C:\Program Files (x86)\Windows Kits\10\bin\10.0.22621.0\x64"
     IF "%PGADMIN_WINDOWS_CSC%" == "" SET "PGADMIN_WINDOWS_CSC="
@@ -163,7 +164,7 @@ REM Main build sequence Ends
     REM Note that we must use virtualenv.exe here, as the venv module doesn't allow python.exe to relocate.
     "%PGADMIN_PYTHON_DIR%\Scripts\virtualenv.exe" venv
 
-    XCOPY /S /I /E /H /Y "%PGADMIN_PYTHON_DIR%\DLLs" "%TMPDIR%\venv\DLLs" > nul || EXIT /B 1
+    @REM XCOPY /S /I /E /H /Y "%PGADMIN_PYTHON_DIR%\DLLs" "%TMPDIR%\venv\DLLs" > nul || EXIT /B 1
     XCOPY /S /I /E /H /Y "%PGADMIN_PYTHON_DIR%\Lib" "%TMPDIR%\venv\Lib" > nul || EXIT /B 1
 
     ECHO Activating virtual environment -  %TMPDIR%\venv...
@@ -184,7 +185,7 @@ REM Main build sequence Ends
     ECHO Downloading embedded Python...
     REM Get the python embeddable and extract it to %BUILDROOT%\python
     CD "%TMPDIR%
-    %PGADMIN_PYTHON_DIR%\python -c "import sys; from urllib.request import urlretrieve; urlretrieve('https://www.python.org/ftp/python/' + sys.version.split(' ')[0] + '/python-' + sys.version.split(' ')[0] + '-embed-amd64.zip', 'python-embedded.zip')" || EXIT /B 1
+    %PGADMIN_PYTHON_DIR%\python -c "import sys; from urllib.request import urlretrieve; urlretrieve('https://www.python.org/ftp/python/3.12.10/python-3.12.10-embed-amd64.zip', 'python-embedded.zip')" || EXIT /B 1
     %PGADMIN_PYTHON_DIR%\python -c "import zipfile; z = zipfile.ZipFile('python-embedded.zip', 'r'); z.extractall('../win-build/python/')" || EXIT /B 1
 
     ECHO Copying site-packages...
@@ -267,7 +268,7 @@ REM Main build sequence Ends
     RD /Q /S "%BUILDROOT%\docs\en_US\html\_sources" 1> nul 2>&1
 
     ECHO Staging runtime components...
-    MKDIR "%BUILDROOT%\runtime\resources\app"
+    MKDIR "%BUILDROOT%\runtime\resources\app" 
     XCOPY /S /I /E /H /Y "%WD%\runtime\assets" "%BUILDROOT%\runtime\resources\app\assets" > nul || EXIT /B 1
     XCOPY /S /I /E /H /Y "%WD%\runtime\src" "%BUILDROOT%\runtime\resources\app\src" > nul || EXIT /B 1
 
