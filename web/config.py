@@ -30,41 +30,48 @@ CONFIG_DATABASE_CONNECTION_POOL_SIZE = 5
 # the connection pool size.
 CONFIG_DATABASE_CONNECTION_MAX_OVERFLOW = 100
 
-from pgadmin.utils import env, IS_WIN, fs_short_path
-from version import APP_VERSION, APP_RELEASE, APP_REVISION, APP_SUFFIX, \
-    APP_VERSION_INT
-from branding import APP_NAME, APP_ICON, APP_COPYRIGHT, APP_PATH, \
-    APP_WIN_PATH, APP_SHORT_NAME, APP_DEFAULT_EMAIL
+from version import APP_VERSION, APP_RELEASE, APP_REVISION, APP_SUFFIX, APP_VERSION_INT
+
+from branding import (
+    APP_COPYRIGHT,
+    APP_DEFAULT_EMAIL,
+    APP_ICON,
+    APP_NAME,
+    APP_PATH,
+    APP_SHORT_NAME,
+    APP_WIN_PATH,
+)
+from pgadmin.utils import IS_WIN, env, fs_short_path
 
 ##########################################################################
 # Misc stuff
 ##########################################################################
 
 # Path to the online help.
-HELP_PATH = '../../../docs/en_US/_build/html/'
+HELP_PATH = "../../../docs/en_US/_build/html/"
 
 # Languages we support in the UI
 LANGUAGES = {
-    'en': 'English',
-    'zh_Hans_CN': 'Chinese (Simplified)',
-    'zh_Hant_TW': 'Chinese (Traditional)',
-    'cs': 'Czech',
-    'fr': 'French',
-    'de': 'German',
-    'id': 'Indonesian',
-    'it': 'Italian',
-    'ja': 'Japanese',
-    'ko': 'Korean',
-    'pl': 'Polish',
-    'pt_BR': 'Portuguese (Brazilian)',
-    'ru': 'Russian',
-    'es': 'Spanish',
-    'sv': 'Swedish'
+    "en": "English",
+    "zh_Hans_CN": "Chinese (Simplified)",
+    "zh_Hant_TW": "Chinese (Traditional)",
+    "cs": "Czech",
+    "fr": "French",
+    "de": "German",
+    "id": "Indonesian",
+    "it": "Italian",
+    "ja": "Japanese",
+    "ko": "Korean",
+    "pl": "Polish",
+    "pt_BR": "Portuguese (Brazilian)",
+    "ru": "Russian",
+    "es": "Spanish",
+    "sv": "Swedish",
 }
 
 # DO NOT CHANGE UNLESS YOU KNOW WHAT YOU ARE DOING!
 # List of modules to skip when dynamically loading
-MODULE_BLACKLIST = ['test']
+MODULE_BLACKLIST = ["test"]
 
 # DO NOT CHANGE UNLESS YOU KNOW WHAT YOU ARE DOING!
 # List of treeview browser nodes to skip when dynamically loading
@@ -89,14 +96,14 @@ NODE_BLACKLIST = []
 #       SESSION_DB_PATH, STORAGE_DIR, KERBEROS_CCACHE_DIR, and
 #       AZURE_CREDENTIAL_CACHE_DIR
 
-if (not hasattr(builtins, 'SERVER_MODE')) or builtins.SERVER_MODE is None:
+if (not hasattr(builtins, "SERVER_MODE")) or builtins.SERVER_MODE is None:
     SERVER_MODE = True
 else:
     SERVER_MODE = builtins.SERVER_MODE
 
 # HTTP headers to search for CSRF token when it is not provided in the form.
 # Default is ['X-CSRFToken', 'X-CSRF-Token']
-WTF_CSRF_HEADERS = ['X-pgA-CSRFToken']
+WTF_CSRF_HEADERS = ["X-pgA-CSRFToken"]
 
 # User ID (email address) to use for the default user in desktop mode.
 # The default should be fine here, as it's not exposed in the app.
@@ -110,7 +117,7 @@ DESKTOP_USER = APP_DEFAULT_EMAIL
 # NOTE: This is NOT recommended for production use, only for debugging
 # or testing. Production installations should be run as a WSGI application
 # behind Apache HTTPD.
-DEFAULT_SERVER = '127.0.0.1'
+DEFAULT_SERVER = "127.0.0.1"
 
 # The default port on which the app server will listen if not set in the
 # environment by the runtime
@@ -121,7 +128,7 @@ DEFAULT_SERVER_PORT = 5050
 # An attacker could use this information to fingerprint underlying operating
 # system and research known exploits for the specific version of
 # software in use
-WEB_SERVER = 'Python'
+WEB_SERVER = "Python"
 
 # Enable X-Frame-Option protection.
 # Set to one of "SAMEORIGIN", "ALLOW-FROM origin" or "" to disable.
@@ -144,8 +151,9 @@ CROSS_ORIGIN_OPENER_POLICY = "same-origin"
 # such as JavaScript, CSS, or pretty much anything that the browser loads.
 # see https://content-security-policy.com/#source_list for more info
 # e.g. "default-src https: data: 'unsafe-inline' 'unsafe-eval';"
-CONTENT_SECURITY_POLICY = "default-src ws: http: data: blob: 'unsafe-inline'" \
-                          " 'unsafe-eval';"
+CONTENT_SECURITY_POLICY = (
+    "default-src ws: http: data: blob: 'unsafe-inline'" " 'unsafe-eval';"
+)
 
 # STRICT_TRANSPORT_SECURITY_ENABLED when set to True will set the
 # Strict-Transport-Security header
@@ -176,7 +184,7 @@ X_XSS_PROTECTION = "1; mode=block"
 ALLOWED_HOSTS = []
 
 # Hashing algorithm used for password storage
-SECURITY_PASSWORD_HASH = 'pbkdf2_sha512'
+SECURITY_PASSWORD_HASH = "pbkdf2_sha512"
 
 # Minimum password length
 PASSWORD_LENGTH_MIN = 6
@@ -208,8 +216,12 @@ PROXY_X_PREFIX_COUNT = 0
 
 # COMPRESSION
 COMPRESS_MIMETYPES = [
-    'text/html', 'text/css', 'text/xml', 'text/javascript',
-    'application/json', 'application/javascript'
+    "text/html",
+    "text/css",
+    "text/xml",
+    "text/javascript",
+    "application/json",
+    "application/javascript",
 ]
 COMPRESS_LEVEL = 9
 COMPRESS_MIN_SIZE = 500
@@ -221,10 +233,10 @@ SEND_FILE_MAX_AGE_DEFAULT = 31556952
 # APP_VERSION_INT for cache busting on version upgrade. If the value is set as
 # None or empty string then it will not be added.
 # eg - http:localhost:5050/pgadmin.css?intver=3.13
-APP_VERSION_PARAM = 'ver'
+APP_VERSION_PARAM = "ver"
 
 # Add the internal version param to below extensions only
-APP_VERSION_EXTN = ('.css', '.js', '.html', '.svg', '.png', '.gif', '.ico')
+APP_VERSION_EXTN = (".css", ".js", ".html", ".svg", ".png", ".gif", ".ico")
 
 # Data directory for storage of config settings etc. This shouldn't normally
 # need to be changed - it's here as various other settings depend on it.
@@ -234,15 +246,13 @@ APP_VERSION_EXTN = ('.css', '.js', '.html', '.svg', '.png', '.gif', '.ico')
 if IS_WIN:
     # Use the short path on windows
     DATA_DIR = os.path.realpath(
-        os.path.join(fs_short_path(env('APPDATA')), APP_WIN_PATH)
+        os.path.join(fs_short_path(env("APPDATA")), APP_WIN_PATH)
     )
 else:
     if SERVER_MODE:
-        DATA_DIR = os.path.join('/var/lib/', APP_PATH)
+        DATA_DIR = os.path.join("/var/lib/", APP_PATH)
     else:
-        DATA_DIR = os.path.realpath(
-            os.path.expanduser('~/' + '.' + APP_PATH + '/')
-        )
+        DATA_DIR = os.path.realpath(os.path.expanduser("~/" + "." + APP_PATH + "/"))
 
 # An optional login banner to show security warnings/disclaimers etc. at
 # login and password recovery etc. HTML may be included for basic formatting,
@@ -271,28 +281,24 @@ FILE_LOG_LEVEL = logging.WARNING
 
 # Log format.
 JSON_LOGGER = False
-CONSOLE_LOG_FORMAT_JSON = OrderedDict([
-    ("time", "asctime"),
-    ("message", "message"),
-    ("level", "levelname")
-])
+CONSOLE_LOG_FORMAT_JSON = OrderedDict(
+    [("time", "asctime"), ("message", "message"), ("level", "levelname")]
+)
 
-FILE_LOG_FORMAT_JSON = OrderedDict([
-    ("time", "asctime"),
-    ("message", "message"),
-    ("level", "levelname")
-])
+FILE_LOG_FORMAT_JSON = OrderedDict(
+    [("time", "asctime"), ("message", "message"), ("level", "levelname")]
+)
 
 
-CONSOLE_LOG_FORMAT = '%(asctime)s: %(levelname)s\t%(name)s:\t%(message)s'
-FILE_LOG_FORMAT = '%(asctime)s: %(levelname)s\t%(name)s:\t%(message)s'
+CONSOLE_LOG_FORMAT = "%(asctime)s: %(levelname)s\t%(name)s:\t%(message)s"
+FILE_LOG_FORMAT = "%(asctime)s: %(levelname)s\t%(name)s:\t%(message)s"
 
 # Log file name. This goes in the data directory, except on non-Windows
 # platforms in server mode.
 if SERVER_MODE and not IS_WIN:
-    LOG_FILE = os.path.join('/var/log', APP_PATH, APP_SHORT_NAME + '.log')
+    LOG_FILE = os.path.join("/var/log", APP_PATH, APP_SHORT_NAME + ".log")
 else:
-    LOG_FILE = os.path.join(DATA_DIR, APP_SHORT_NAME + '.log')
+    LOG_FILE = os.path.join(DATA_DIR, APP_SHORT_NAME + ".log")
 
 # Log rotation setting
 # Log file will be rotated considering values for LOG_ROTATION_SIZE
@@ -306,7 +312,7 @@ LOG_ROTATION_MAX_LOG_FILES = 90  # Maximum number of backups to retain
 ##########################################################################
 
 # The default driver used for making connection with PostgreSQL
-PG_DEFAULT_DRIVER = 'psycopg3'
+PG_DEFAULT_DRIVER = "psycopg3"
 
 # Maximum allowed idle time in minutes before which releasing the connection
 # for the particular session. (in minutes)
@@ -327,7 +333,7 @@ MAX_SESSION_IDLE_TIME = 60
 # Using PGPASS file
 # postgresql://username@host:port?options=-csearch_path=pgadmin
 ##########################################################################
-CONFIG_DATABASE_URI = ''
+CONFIG_DATABASE_URI = ""
 
 ##########################################################################
 # User account and settings storage
@@ -336,8 +342,7 @@ CONFIG_DATABASE_URI = ''
 # The default path to the SQLite database used to store user accounts and
 # settings. This default places the file in the same directory as this
 # config file, but generates an absolute path for use througout the app.
-SQLITE_PATH = env('SQLITE_PATH') or \
-    os.path.join(DATA_DIR, APP_SHORT_NAME + '.db')
+SQLITE_PATH = env("SQLITE_PATH") or os.path.join(DATA_DIR, APP_SHORT_NAME + ".db")
 
 # SQLITE_TIMEOUT will define how long to wait before throwing the error -
 # OperationError due to database lock. On slower system, you may need to change
@@ -372,12 +377,12 @@ MAX_QUERY_HIST_STORED = 20
 # SESSION_DB_PATH = '/run/shm/pgAdmin4_session'
 #
 ##########################################################################
-SESSION_DB_PATH = os.path.join(DATA_DIR, 'sessions')
+SESSION_DB_PATH = os.path.join(DATA_DIR, "sessions")
 
-SESSION_COOKIE_NAME = 'pga4_session'
+SESSION_COOKIE_NAME = "pga4_session"
 
 # Session digest method
-SESSION_DIGEST_METHOD = 'hashlib.sha1'
+SESSION_DIGEST_METHOD = "hashlib.sha1"
 
 ##########################################################################
 # Mail server settings
@@ -386,36 +391,34 @@ SESSION_DIGEST_METHOD = 'hashlib.sha1'
 # These settings are used when running in web server mode for confirming
 # and resetting passwords etc.
 # See: http://pythonhosted.org/Flask-Mail/ for more info
-MAIL_SERVER = 'localhost'
+MAIL_SERVER = "localhost"
 MAIL_PORT = 25
 MAIL_USE_SSL = False
 MAIL_USE_TLS = False
-MAIL_USERNAME = ''
-MAIL_PASSWORD = ''
+MAIL_USERNAME = ""
+MAIL_PASSWORD = ""
 MAIL_DEBUG = False
 
 # Flask-Security overrides Flask-Mail's MAIL_DEFAULT_SENDER setting, so
 # that should be set as such:
-SECURITY_EMAIL_SENDER = 'no-reply@localhost'
+SECURITY_EMAIL_SENDER = "no-reply@localhost"
 
 ##########################################################################
 # Mail content settings
 ##########################################################################
 
 # These settings define the content of password reset emails
-SECURITY_EMAIL_SUBJECT_PASSWORD_RESET = "Password reset instructions for %s" \
-                                        % APP_NAME
-SECURITY_EMAIL_SUBJECT_PASSWORD_NOTICE = "Your %s password has been reset" \
-                                         % APP_NAME
-SECURITY_EMAIL_SUBJECT_PASSWORD_CHANGE_NOTICE = \
+SECURITY_EMAIL_SUBJECT_PASSWORD_RESET = "Password reset instructions for %s" % APP_NAME
+SECURITY_EMAIL_SUBJECT_PASSWORD_NOTICE = "Your %s password has been reset" % APP_NAME
+SECURITY_EMAIL_SUBJECT_PASSWORD_CHANGE_NOTICE = (
     "Your password for %s has been changed" % APP_NAME
+)
 
 ##########################################################################
 # Email address validation
 ##########################################################################
 CHECK_EMAIL_DELIVERABILITY = False
-SECURITY_EMAIL_VALIDATOR_ARGS = \
-    {"check_deliverability": CHECK_EMAIL_DELIVERABILITY}
+SECURITY_EMAIL_VALIDATOR_ARGS = {"check_deliverability": CHECK_EMAIL_DELIVERABILITY}
 ALLOW_SPECIAL_EMAIL_DOMAINS = []
 # Disables global deliverable check while email validation
 GLOBALLY_DELIVERABLE = True
@@ -427,15 +430,14 @@ GLOBALLY_DELIVERABLE = True
 UPGRADE_CHECK_ENABLED = True
 
 # Where should we get the data from?
-UPGRADE_CHECK_URL = 'https://www.pgadmin.org/versions.json'
+UPGRADE_CHECK_URL = "https://www.pgadmin.org/versions.json"
 
 # What key should we look at in the upgrade data file?
-UPGRADE_CHECK_KEY = 'pgadmin4'
+UPGRADE_CHECK_KEY = "pgadmin4"
 
 # Which CA file should we use?
 # Default to cacert.pem in the same directory as config.py et al.
-CA_FILE = os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                       "cacert.pem")
+CA_FILE = os.path.join(os.path.dirname(os.path.realpath(__file__)), "cacert.pem")
 
 # Check if the detected browser is supported
 CHECK_SUPPORTED_BROWSER = True
@@ -451,7 +453,7 @@ CHECK_SUPPORTED_BROWSER = True
 # 2. Set path manually like
 # STORAGE_DIR = "/path/to/directory/"
 ##########################################################################
-STORAGE_DIR = os.path.join(DATA_DIR, 'storage')
+STORAGE_DIR = os.path.join(DATA_DIR, "storage")
 
 ##########################################################################
 # Default locations for binary utilities (pg_dump, pg_restore etc)
@@ -486,7 +488,7 @@ DEFAULT_BINARY_PATHS = {
     "ppas-15": "",
     "ppas-16": "",
     "ppas-17": "",
-    "ppas-18": ""
+    "ppas-18": "",
 }
 
 ##########################################################################
@@ -508,7 +510,7 @@ FIXED_BINARY_PATHS = {
     "ppas-15": "",
     "ppas-16": "",
     "ppas-17": "",
-    "ppas-18": ""
+    "ppas-18": "",
 }
 
 ##########################################################################
@@ -516,7 +518,7 @@ FIXED_BINARY_PATHS = {
 ##########################################################################
 
 # The default path for SQLite database for testing
-TEST_SQLITE_PATH = os.path.join(DATA_DIR, 'test_pgadmin4.db')
+TEST_SQLITE_PATH = os.path.join(DATA_DIR, "test_pgadmin4.db")
 
 ##########################################################################
 # Allows flask application to response to the each request asynchronously
@@ -543,19 +545,17 @@ SHOW_GRAVATAR_IMAGE = True
 ##########################################################################
 # Set cookie path and options
 ##########################################################################
-COOKIE_DEFAULT_PATH = '/'
+COOKIE_DEFAULT_PATH = "/"
 COOKIE_DEFAULT_DOMAIN = None
 SESSION_COOKIE_DOMAIN = None
-SESSION_COOKIE_SAMESITE = 'Lax'
+SESSION_COOKIE_SAMESITE = "Lax"
 SESSION_COOKIE_SECURE = False
 SESSION_COOKIE_HTTPONLY = True
 
 #########################################################################
 # Skip storing session in files and cache for specific paths
 #########################################################################
-SESSION_SKIP_PATHS = [
-    '/misc/ping'
-]
+SESSION_SKIP_PATHS = ["/misc/ping"]
 
 ##########################################################################
 # Session expiration support
@@ -651,7 +651,7 @@ ENHANCED_COOKIE_PROTECTION = True
 # pgAdmin will authenticate the user with ldap/oauth2 whatever first in the
 # list, in case of failure the second authentication option will be considered.
 
-AUTHENTICATION_SOURCES = ['internal']
+AUTHENTICATION_SOURCES = ["internal"]
 
 ##########################################################################
 # MAX_LOGIN_ATTEMPTS which sets the number of failed login attempts that
@@ -664,7 +664,7 @@ MAX_LOGIN_ATTEMPTS = 3
 ##########################################################################
 # Only consider password to check the failed login attempts, email is
 # excluded from this check
-LOGIN_ATTEMPT_FIELDS = ['password']
+LOGIN_ATTEMPT_FIELDS = ["password"]
 ##########################################################################
 # LDAP Configuration
 ##########################################################################
@@ -680,11 +680,11 @@ LDAP_CONNECTION_TIMEOUT = 10
 
 # Server connection details (REQUIRED)
 # example: ldap://<ip-address>:<port> or ldap://<hostname>:<port>
-LDAP_SERVER_URI = 'ldap://<ip-address>:<port>'
+LDAP_SERVER_URI = "ldap://<ip-address>:<port>"
 
 # The LDAP attribute containing user names. In OpenLDAP, this may be 'uid'
 # whilst in AD, 'sAMAccountName' might be appropriate. (REQUIRED)
-LDAP_USERNAME_ATTRIBUTE = '<User-id>'
+LDAP_USERNAME_ATTRIBUTE = "<User-id>"
 
 ##########################################################################
 # 3 ways to configure LDAP as follows (Choose anyone):
@@ -717,7 +717,7 @@ LDAP_ANONYMOUS_BIND = False
 # AD example:
 # (&(objectClass=user)(memberof=CN=MYGROUP,CN=Users,dc=example,dc=com))
 # OpenLDAP example: CN=Users,dc=example,dc=com
-LDAP_BASE_DN = '<Base-DN>'
+LDAP_BASE_DN = "<Base-DN>"
 
 # Configure the bind format string
 # Default: LDAP_BIND_FORMAT="
@@ -726,13 +726,13 @@ LDAP_BASE_DN = '<Base-DN>'
 # LDAP_USERNAME_ATTRIBUTE, LDAP_USERNAME, LDAP_BASE_DN
 # Example: LDAP_BIND_FORMAT="myldapuser@sales.example.com"
 #          LDAP_BIND_FORMAT="NET\\myldapuser"
-LDAP_BIND_FORMAT = '{LDAP_USERNAME_ATTRIBUTE}={LDAP_USERNAME},{LDAP_BASE_DN}'
+LDAP_BIND_FORMAT = "{LDAP_USERNAME_ATTRIBUTE}={LDAP_USERNAME},{LDAP_BASE_DN}"
 
 ##########################################################################
 
 # Search ldap for further authentication (REQUIRED)
 # It can be optional while bind as pgAdmin user
-LDAP_SEARCH_BASE_DN = '<Search-Base-DN>'
+LDAP_SEARCH_BASE_DN = "<Search-Base-DN>"
 
 # The LDAP attribute indicates whether the DN (Distinguished Names)
 # are case sensitive or not
@@ -741,18 +741,18 @@ LDAP_DN_CASE_SENSITIVE = False
 # Filter string for the user search.
 # For OpenLDAP, '(cn=*)' may well be enough.
 # For AD, you might use '(objectClass=user)' (REQUIRED)
-LDAP_SEARCH_FILTER = '(objectclass=*)'
+LDAP_SEARCH_FILTER = "(objectclass=*)"
 
 # Search scope for users (one of BASE, LEVEL or SUBTREE)
-LDAP_SEARCH_SCOPE = 'SUBTREE'
+LDAP_SEARCH_SCOPE = "SUBTREE"
 
 # Use TLS? If the URI scheme is ldaps://, this is ignored.
 LDAP_USE_STARTTLS = False
 
 # TLS/SSL certificates. Specify if required, otherwise leave empty
-LDAP_CA_CERT_FILE = ''
-LDAP_CERT_FILE = ''
-LDAP_KEY_FILE = ''
+LDAP_CA_CERT_FILE = ""
+LDAP_CERT_FILE = ""
+LDAP_KEY_FILE = ""
 
 # TLS/SSL certificate Validation (True/False),
 # Make it false if certificate validation is not required.
@@ -774,7 +774,7 @@ KRB_APP_HOST_NAME = DEFAULT_SERVER
 # the KRB_KTNAME environment variable is not set then, explicitly set
 # the Keytab file
 
-KRB_KTNAME = '<KRB5_KEYTAB_FILE>'
+KRB_KTNAME = "<KRB5_KEYTAB_FILE>"
 
 # After kerberos authentication, user will be added into the SQLite database
 # automatically, if set to True.
@@ -783,13 +783,13 @@ KRB_KTNAME = '<KRB5_KEYTAB_FILE>'
 
 KRB_AUTO_CREATE_USER = True
 
-KERBEROS_CCACHE_DIR = os.path.join(DATA_DIR, 'krbccache')
+KERBEROS_CCACHE_DIR = os.path.join(DATA_DIR, "krbccache")
 
 #############################################################################
 # Create local directory to store azure credential cache
 #############################################################################
 
-AZURE_CREDENTIAL_CACHE_DIR = os.path.join(DATA_DIR, 'azurecredentialcache')
+AZURE_CREDENTIAL_CACHE_DIR = os.path.join(DATA_DIR, "azurecredentialcache")
 
 ##########################################################################
 # OAuth2 Configuration
@@ -801,36 +801,36 @@ AZURE_CREDENTIAL_CACHE_DIR = os.path.join(DATA_DIR, 'azurecredentialcache')
 OAUTH2_CONFIG = [
     {
         # The name of the of the oauth provider, ex: github, google
-        'OAUTH2_NAME': None,
+        "OAUTH2_NAME": None,
         # The display name, ex: Google
-        'OAUTH2_DISPLAY_NAME': '<Oauth2 Display Name>',
+        "OAUTH2_DISPLAY_NAME": "<Oauth2 Display Name>",
         # Oauth client id
-        'OAUTH2_CLIENT_ID': None,
+        "OAUTH2_CLIENT_ID": None,
         # Oauth secret
-        'OAUTH2_CLIENT_SECRET': None,
+        "OAUTH2_CLIENT_SECRET": None,
         # URL to generate a token,
         # Ex: https://github.com/login/oauth/access_token
-        'OAUTH2_TOKEN_URL': None,
+        "OAUTH2_TOKEN_URL": None,
         # URL is used for authentication,
         # Ex: https://github.com/login/oauth/authorize
-        'OAUTH2_AUTHORIZATION_URL': None,
+        "OAUTH2_AUTHORIZATION_URL": None,
         # server metadata url might optional for your provider
-        'OAUTH2_SERVER_METADATA_URL': None,
+        "OAUTH2_SERVER_METADATA_URL": None,
         # Oauth base url, ex: https://api.github.com/
-        'OAUTH2_API_BASE_URL': None,
+        "OAUTH2_API_BASE_URL": None,
         # Name of the Endpoint, ex: user
-        'OAUTH2_USERINFO_ENDPOINT': None,
+        "OAUTH2_USERINFO_ENDPOINT": None,
         # Oauth scope, ex: 'openid email profile'
         # Note that an 'email' claim is required in the resulting profile
-        'OAUTH2_SCOPE': None,
+        "OAUTH2_SCOPE": None,
         # The claim which is used for the username. If the value is empty the
         # email is used as username, but if a value is provided,
         # the claim has to exist.
-        'OAUTH2_USERNAME_CLAIM': None,
+        "OAUTH2_USERNAME_CLAIM": None,
         # Font-awesome icon, ex: fa-github
-        'OAUTH2_ICON': None,
+        "OAUTH2_ICON": None,
         # UI button colour, ex: #0000ff
-        'OAUTH2_BUTTON_COLOR': None,
+        "OAUTH2_BUTTON_COLOR": None,
         # The additional claims to check on user ID Token or Userinfo response.
         # This is useful to provide additional authorization checks
         # before allowing access.
@@ -851,17 +851,17 @@ OAUTH2_CONFIG = [
         #     'groups': ["0760b6cf-170e-4a14-91b3-4b78e0739963"],
         #     'wids': ["cf1c38e5-3621-4004-a7cb-879624dced7c"],
         # }
-        'OAUTH2_ADDITIONAL_CLAIMS': None,
+        "OAUTH2_ADDITIONAL_CLAIMS": None,
         # Set this variable to False to disable SSL certificate verification
         # for OAuth2 provider.
         # This may need to set False, in case of self-signed certificates.
         # Ref: https://github.com/psf/requests/issues/6071
-        'OAUTH2_SSL_CERT_VERIFICATION': True,
+        "OAUTH2_SSL_CERT_VERIFICATION": True,
         # set this variable to invalidate the session of the oauth2 provider
         # Example for keycloak:
         # 'OAUTH2_LOGOUT_URL':
         # 'https://example.com/realms/master/protocol/openid-connect/logout?post_logout_redirect_uri={redirect_uri}&id_token_hint={id_token}'
-        'OAUTH2_LOGOUT_URL': None
+        "OAUTH2_LOGOUT_URL": None,
     }
 ]
 
@@ -883,7 +883,7 @@ WEBSERVER_AUTO_CREATE_USER = True
 # request header will be checked for the same.
 # Possible values: REMOTE_USER, HTTP_X_FORWARDED_USER, X-Forwarded-User
 
-WEBSERVER_REMOTE_USER = 'REMOTE_USER'
+WEBSERVER_REMOTE_USER = "REMOTE_USER"
 
 ##########################################################################
 # Two-factor Authentication Configuration
@@ -971,6 +971,28 @@ MAX_SERVER_TAGS_ALLOWED = 5
 ON_DEMAND_LOG_COUNT = 10000
 
 ##########################################################################
+# Startup performance tuning flags (Stage 1)
+##########################################################################
+
+# Enable startup phase timing logs in create_app().
+STARTUP_PROFILE_ENABLED = False
+
+# Enable schema version caching/check short-circuit during startup.
+SCHEMA_VERSION_CHECK_ENABLED = True
+
+# Enable lazy import strategy for plugin submodules.
+LAZY_MODULE_LOADING_ENABLED = True
+
+# Enable parallel plugin submodule imports.
+PARALLEL_INIT_ENABLED = False
+
+# Worker count used when PARALLEL_INIT_ENABLED is True.
+PARALLEL_INIT_WORKERS = 4
+
+# Enable preference registration hash cache.
+PREFERENCES_HASH_CACHE_ENABLED = True
+
+##########################################################################
 # AI/LLM Settings
 ##########################################################################
 
@@ -984,24 +1006,24 @@ LLM_ENABLED = True
 # Specifies which LLM provider to use by default when LLM_ENABLED is True.
 # Users can override this in their preferences.
 # Valid values: 'anthropic', 'openai', 'ollama', 'docker', or '' (disabled)
-DEFAULT_LLM_PROVIDER = ''
+DEFAULT_LLM_PROVIDER = ""
 
 # Anthropic Configuration
 # URL for the Anthropic API endpoint. Leave empty to use the default
 # (https://api.anthropic.com/v1). Set a custom URL to use an
 # Anthropic-compatible API provider.
-ANTHROPIC_API_URL = ''
+ANTHROPIC_API_URL = ""
 
 # Path to a file containing the Anthropic API key. The file should contain
 # only the API key with no additional whitespace or formatting.
 # Default: ~/.anthropic-api-key
 # Note: The API key may be optional when using a custom API URL with a
 # provider that does not require authentication.
-ANTHROPIC_API_KEY_FILE = '~/.anthropic-api-key'
+ANTHROPIC_API_KEY_FILE = "~/.anthropic-api-key"
 
 # The Anthropic model to use for AI features.
 # Examples: claude-sonnet-4-20250514, claude-3-5-haiku-20241022
-ANTHROPIC_API_MODEL = ''
+ANTHROPIC_API_MODEL = ""
 
 # OpenAI Configuration
 # URL for the OpenAI API endpoint. Leave empty to use the default
@@ -1009,27 +1031,27 @@ ANTHROPIC_API_MODEL = ''
 # OpenAI-compatible API provider (e.g., LiteLLM, LM Studio, EXO).
 # Include the /v1 path prefix if required by your provider
 # (e.g., http://localhost:1234/v1).
-OPENAI_API_URL = ''
+OPENAI_API_URL = ""
 
 # Path to a file containing the OpenAI API key. The file should contain
 # only the API key with no additional whitespace or formatting.
 # Default: ~/.openai-api-key
 # Note: The API key may be optional when using a custom API URL with a
 # provider that does not require authentication.
-OPENAI_API_KEY_FILE = '~/.openai-api-key'
+OPENAI_API_KEY_FILE = "~/.openai-api-key"
 
 # The OpenAI model to use for AI features.
 # Examples: gpt-4o, gpt-4o-mini, gpt-4-turbo
-OPENAI_API_MODEL = ''
+OPENAI_API_MODEL = ""
 
 # Ollama Configuration
 # URL for the Ollama API endpoint. Leave empty to disable Ollama.
 # Typical value: http://localhost:11434
-OLLAMA_API_URL = ''
+OLLAMA_API_URL = ""
 
 # The Ollama model to use for AI features.
 # Examples: llama3.2, codellama, mistral
-OLLAMA_API_MODEL = ''
+OLLAMA_API_MODEL = ""
 
 # Docker Model Runner Configuration
 # Docker Desktop 4.40+ includes a built-in model runner with an
@@ -1038,11 +1060,11 @@ OLLAMA_API_MODEL = ''
 # Typical value: http://localhost:12434
 # Tip: You can also use the OpenAI provider with a custom API URL for any
 # OpenAI-compatible endpoint, including Docker Model Runner.
-DOCKER_API_URL = ''
+DOCKER_API_URL = ""
 
 # The Docker Model Runner model to use for AI features.
 # Examples: ai/qwen3-coder, ai/llama3.2
-DOCKER_API_MODEL = ''
+DOCKER_API_MODEL = ""
 
 # Maximum Tool Iterations
 # The maximum number of tool call iterations allowed during an AI conversation.
@@ -1054,4 +1076,5 @@ MAX_LLM_TOOL_ITERATIONS = 20
 # Patch the default config with custom config and other manipulations
 #############################################################################
 from pgadmin.evaluate_config import evaluate_and_patch_config
+
 locals().update(evaluate_and_patch_config(locals()))

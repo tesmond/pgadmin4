@@ -4,7 +4,7 @@ Version 9.14
 
 Release date: 2026-04-02
 
-This release contains a number of bug fixes and new features since the release of pgAdmin 4 v9.13.
+This release contains a number of bug fixes and new features since the release of pgAdmin 4 v9.13.1.
 
 Supported Database Servers
 **************************

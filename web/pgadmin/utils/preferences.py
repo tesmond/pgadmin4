@@ -13,26 +13,57 @@ module within the system.
 """
 
 import decimal
+import hashlib
 import json
+import os
+import threading
 
 import dateutil.parser as dateutil_parser
 from flask import current_app
 from flask_babel import gettext
 from flask_security import current_user
 
-from pgadmin.model import db, Preferences as PrefTable, \
-    ModulePreference as ModulePrefTable, UserPreference as UserPrefTable, \
-    PreferenceCategory as PrefCategoryTbl
+from pgadmin.model import ModulePreference as ModulePrefTable
+from pgadmin.model import PreferenceCategory as PrefCategoryTbl
+from pgadmin.model import Preferences as PrefTable
+from pgadmin.model import UserPreference as UserPrefTable
+from pgadmin.model import db
 
 
-class _Preference():
+def _registration_cache_file_path():
+    try:
+        import config
+
+        data_dir = getattr(config, "DATA_DIR", None)
+        if data_dir:
+            return os.path.join(data_dir, ".pref_cache_hash")
+    except Exception:
+        pass
+
+    return None
+
+
+def _build_preference_signature(module, category, name, label, _type, kwargs):
+    payload = {
+        "module": module,
+        "category": category,
+        "name": name,
+        "label": label,
+        "type": _type,
+        "args": kwargs,
+    }
+
+    return hashlib.sha256(
+        json.dumps(payload, sort_keys=True, default=str).encode("utf-8")
+    ).hexdigest()
+
+
+class _Preference:
     """
     Internal class representing module, and categoy bound preference.
     """
 
-    def __init__(
-        self, cid, name, label, _type, default, **kwargs
-    ):
+    def __init__(self, cid, name, label, _type, default, **kwargs):
         """
         __init__
         Constructor/Initializer for the internal _Preference object.
@@ -65,23 +96,21 @@ class _Preference():
         self.default = default
         self.label = label
         self._type = _type
-        self.help_str = kwargs.get('help_str', None)
-        self.control_props = kwargs.get('control_props', None)
-        self.min_val = kwargs.get('min_val', None)
-        self.max_val = kwargs.get('max_val', None)
-        self.options = kwargs.get('options', None)
-        self.select = kwargs.get('select', None)
-        self.fields = kwargs.get('fields', None)
-        self.hidden = kwargs.get('hidden', None)
-        self.allow_blanks = kwargs.get('allow_blanks', None)
-        self.disabled = kwargs.get('disabled', False)
-        self.dependents = kwargs.get('dependents', None)
+        self.help_str = kwargs.get("help_str", None)
+        self.control_props = kwargs.get("control_props", None)
+        self.min_val = kwargs.get("min_val", None)
+        self.max_val = kwargs.get("max_val", None)
+        self.options = kwargs.get("options", None)
+        self.select = kwargs.get("select", None)
+        self.fields = kwargs.get("fields", None)
+        self.hidden = kwargs.get("hidden", None)
+        self.allow_blanks = kwargs.get("allow_blanks", None)
+        self.disabled = kwargs.get("disabled", False)
+        self.dependents = kwargs.get("dependents", None)
 
         # Look into the configuration table to find out the id of the specific
         # preference.
-        res = PrefTable.query.filter_by(
-            name=name, cid=cid
-        ).first()
+        res = PrefTable.query.filter_by(name=name, cid=cid).first()
 
         if res is None:
             # Could not find in the configuration table, we will create new
@@ -89,9 +118,7 @@ class _Preference():
             res = PrefTable(name=self.name, cid=cid)
             db.session.add(res)
             db.session.commit()
-            res = PrefTable.query.filter_by(
-                name=name, cid=cid
-            ).first()
+            res = PrefTable.query.filter_by(name=name, cid=cid).first()
 
         # Save this id for letter use.
         self.pid = res.id
@@ -105,9 +132,11 @@ class _Preference():
 
         :returns: value for this preference.
         """
-        res = UserPrefTable.query.filter_by(
-            pid=self.pid
-        ).filter_by(uid=current_user.id).first()
+        res = (
+            UserPrefTable.query.filter_by(pid=self.pid)
+            .filter_by(uid=current_user.id)
+            .first()
+        )
 
         # Could not find any preference for this user, return default value.
         if res is None:
@@ -119,15 +148,15 @@ class _Preference():
         if is_format_data:
             return data
 
-        if self._type == 'text' and res.value == '' and not self.allow_blanks:
+        if self._type == "text" and res.value == "" and not self.allow_blanks:
             return self.default
 
         parser_map = {
-            'integer': int,
-            'numeric': decimal.Decimal,
-            'date': dateutil_parser.parse,
-            'datetime': dateutil_parser.parse,
-            'keyboardshortcut': json.loads
+            "integer": int,
+            "numeric": decimal.Decimal,
+            "date": dateutil_parser.parse,
+            "datetime": dateutil_parser.parse,
+            "keyboardshortcut": json.loads,
         }
         try:
             return parser_map.get(self._type, lambda v: v)(res.value)
@@ -141,26 +170,29 @@ class _Preference():
         required format.
         :param res: type value.
         """
-        if self._type in ('boolean', 'switch', 'node'):
-            return True, res.value == 'True'
-        if self._type == 'options':
+        if self._type in ("boolean", "switch", "node"):
+            return True, res.value == "True"
+        if self._type == "options":
             for opt in self.options:
-                if 'value' in opt and opt['value'] == res.value:
+                if "value" in opt and opt["value"] == res.value:
                     return True, res.value
 
-            if self.control_props and 'creatable' in self.control_props and \
-                    self.control_props['creatable']:
+            if (
+                self.control_props
+                and "creatable" in self.control_props
+                and self.control_props["creatable"]
+            ):
                 return True, res.value
 
-            if self.select and 'tags' in self.select and self.select['tags']:
+            if self.select and "tags" in self.select and self.select["tags"]:
                 return True, res.value
             return True, self.default
-        if self._type == 'select':
+        if self._type == "select":
             if res.value:
-                res.value = res.value.replace('[', '')
-                res.value = res.value.replace(']', '')
-                res.value = res.value.replace('\'', '')
-                return True, [val.strip() for val in res.value.split(',')]
+                res.value = res.value.replace("[", "")
+                res.value = res.value.replace("]", "")
+                res.value = res.value.replace("'", "")
+                return True, [val.strip() for val in res.value.split(",")]
             return True, None
 
         return False, None
@@ -178,54 +210,62 @@ class _Preference():
         # them in string first. We also need to validate the value type.
 
         parser_map = {
-            'integer': int,
-            'numeric': float,
-            'date': dateutil_parser.parse,
-            'datetime': dateutil_parser.parse,
-            'keyboardshortcut': json.dumps
+            "integer": int,
+            "numeric": float,
+            "date": dateutil_parser.parse,
+            "datetime": dateutil_parser.parse,
+            "keyboardshortcut": json.dumps,
         }
 
-        error_map = {
-            'keyboardshortcut': 'keyboard shortcut'
-        }
+        error_map = {"keyboardshortcut": "keyboard shortcut"}
 
         try:
-            if self._type in ('boolean', 'switch', 'node'):
+            if self._type in ("boolean", "switch", "node"):
                 assert isinstance(value, bool)
-            elif self._type == 'options':
-                has_value = next((True for opt in self.options
-                                  if 'value' in opt and opt['value'] == value),
-                                 False)
-                assert (has_value or (self.control_props and
-                                      (self.control_props['tags'] or
-                                       self.control_props['creatable'])))
-            elif self._type == 'date':
+            elif self._type == "options":
+                has_value = next(
+                    (
+                        True
+                        for opt in self.options
+                        if "value" in opt and opt["value"] == value
+                    ),
+                    False,
+                )
+                assert has_value or (
+                    self.control_props
+                    and (self.control_props["tags"] or self.control_props["creatable"])
+                )
+            elif self._type == "date":
                 value = parser_map[self._type](value).date()
             else:
                 value = parser_map.get(self._type, lambda v: v)(value)
-                if self._type == 'integer':
+                if self._type == "integer":
                     value = self.normalize_range(value)
                     assert isinstance(value, int)
-                if self._type == 'numeric':
+                if self._type == "numeric":
                     value = self.normalize_range(value)
                     assert (
-                        isinstance(value, int) or isinstance(value, float) or
-                        isinstance(value, decimal.Decimal))
+                        isinstance(value, int)
+                        or isinstance(value, float)
+                        or isinstance(value, decimal.Decimal)
+                    )
         except Exception as e:
             current_app.logger.exception(e)
             return False, gettext(
                 "Invalid value for {0} option.".format(
-                    error_map.get(self._type, self._type)))
+                    error_map.get(self._type, self._type)
+                )
+            )
 
-        pref = UserPrefTable.query.filter_by(
-            pid=self.pid
-        ).filter_by(uid=current_user.id).first()
+        pref = (
+            UserPrefTable.query.filter_by(pid=self.pid)
+            .filter_by(uid=current_user.id)
+            .first()
+        )
 
         value = "{}".format(value)
         if pref is None:
-            pref = UserPrefTable(
-                uid=current_user.id, pid=self.pid, value=value
-            )
+            pref = UserPrefTable(uid=current_user.id, pid=self.pid, value=value)
             db.session.add(pref)
         else:
             pref.value = value
@@ -250,27 +290,27 @@ class _Preference():
         :returns: the JSON representation for this preferences
         """
         res = {
-            'id': self.pid,
-            'cid': self.cid,
-            'name': self.name,
-            'label': self.label or self.name,
-            'type': self._type,
-            'help_str': self.help_str,
-            'control_props': self.control_props,
-            'min_val': self.min_val,
-            'max_val': self.max_val,
-            'options': self.options,
-            'select': self.select,
-            'value': self.get(),
-            'fields': self.fields,
-            'hidden': self.hidden,
-            'disabled': self.disabled,
-            'dependents': self.dependents
+            "id": self.pid,
+            "cid": self.cid,
+            "name": self.name,
+            "label": self.label or self.name,
+            "type": self._type,
+            "help_str": self.help_str,
+            "control_props": self.control_props,
+            "min_val": self.min_val,
+            "max_val": self.max_val,
+            "options": self.options,
+            "select": self.select,
+            "value": self.get(),
+            "fields": self.fields,
+            "hidden": self.hidden,
+            "disabled": self.disabled,
+            "dependents": self.dependents,
         }
         return res
 
 
-class Preferences():
+class Preferences:
     """
     class Preferences
 
@@ -296,7 +336,11 @@ class Preferences():
     Instance Definitions:
     -------- -----------
     """
+
     modules = dict()
+    _modules_lock = threading.RLock()
+    _registration_cache_lock = threading.RLock()
+    _registration_hash_cache = None
 
     def __init__(self, name, label=None):
         """
@@ -326,11 +370,52 @@ class Preferences():
 
         self.mid = module.id
 
-        if name in Preferences.modules:
-            m = Preferences.modules[name]
-            self.categories = m.categories
-        else:
-            Preferences.modules[name] = self
+        with Preferences._modules_lock:
+            if name in Preferences.modules:
+                m = Preferences.modules[name]
+                self.categories = m.categories
+            else:
+                Preferences.modules[name] = self
+
+    @classmethod
+    def _is_registration_cache_enabled(cls):
+        try:
+            import config
+
+            return bool(getattr(config, "PREFERENCES_HASH_CACHE_ENABLED", True))
+        except Exception:
+            return True
+
+    @classmethod
+    def _get_registration_hash_cache(cls):
+        if cls._registration_hash_cache is not None:
+            return cls._registration_hash_cache
+
+        cache = {}
+        cache_path = _registration_cache_file_path()
+        if cache_path and os.path.exists(cache_path):
+            try:
+                with open(cache_path, encoding="utf-8") as cache_file:
+                    cache = json.load(cache_file)
+            except Exception:
+                cache = {}
+
+        cls._registration_hash_cache = cache
+        return cls._registration_hash_cache
+
+    @classmethod
+    def _persist_registration_hash_cache(cls):
+        cache_path = _registration_cache_file_path()
+        if not cache_path:
+            return
+
+        os.makedirs(os.path.dirname(cache_path), exist_ok=True)
+        with open(cache_path, "w", encoding="utf-8") as cache_file:
+            json.dump(cls._registration_hash_cache or {}, cache_file)
+
+    @classmethod
+    def _get_registration_cache_key(cls, module, category, name):
+        return "{}.{}.{}".format(module, category, name)
 
     def to_json(self):
         """
@@ -340,26 +425,26 @@ class Preferences():
         :returns: a JSON object contains information.
         """
         res = {
-            'id': self.mid,
-            'label': self.label or self.name,
-            'name': self.name,
-            'categories': []
+            "id": self.mid,
+            "label": self.label or self.name,
+            "name": self.name,
+            "categories": [],
         }
         for c in self.categories:
             cat = self.categories[c]
             interm = {
-                'id': cat['id'],
-                'name': cat['name'],
-                'label': cat['label'] or cat['name'],
-                'preferences': []
+                "id": cat["id"],
+                "name": cat["name"],
+                "label": cat["label"] or cat["name"],
+                "preferences": [],
             }
 
-            res['categories'].append(interm)
+            res["categories"].append(interm)
 
-            for p in cat['preferences']:
-                pref = (cat['preferences'][p]).to_json().copy()
-                pref.update({'mid': self.mid, 'cid': cat['id']})
-                interm['preferences'].append(pref)
+            for p in cat["preferences"]:
+                pref = (cat["preferences"][p]).to_json().copy()
+                pref.update({"mid": self.mid, "cid": cat["id"]})
+                interm["preferences"].append(pref)
 
         return res
 
@@ -378,34 +463,32 @@ class Preferences():
         if name in self.categories:
             res = self.categories[name]
             # Update the category label (if not yet defined)
-            res['label'] = res['label'] or label
+            res["label"] = res["label"] or label
 
             return res
 
-        cat = PrefCategoryTbl.query.filter_by(
-            mid=self.mid
-        ).filter_by(name=name).first()
+        cat = PrefCategoryTbl.query.filter_by(mid=self.mid).filter_by(name=name).first()
 
         if cat is None:
             cat = PrefCategoryTbl(name=name, mid=self.mid)
             db.session.add(cat)
             db.session.commit()
-            cat = PrefCategoryTbl.query.filter_by(
-                mid=self.mid
-            ).filter_by(name=name).first()
+            cat = (
+                PrefCategoryTbl.query.filter_by(mid=self.mid)
+                .filter_by(name=name)
+                .first()
+            )
 
         self.categories[name] = res = {
-            'id': cat.id,
-            'name': name,
-            'label': label,
-            'preferences': dict()
+            "id": cat.id,
+            "name": name,
+            "label": label,
+            "preferences": dict(),
         }
 
         return res
 
-    def register(
-        self, category, name, label, _type, default, **kwargs
-    ):
+    def register(self, category, name, label, _type, default, **kwargs):
         """
         register
         Register/Refer the particular preference in this module.
@@ -431,37 +514,60 @@ class Preferences():
         :param allow_blanks: Flag specify whether to allow blank value.
         :param disabled: Flag specify whether to disable the setting or not.
         """
-        min_val = kwargs.get('min_val', None)
-        max_val = kwargs.get('max_val', None)
-        options = kwargs.get('options', None)
-        help_str = kwargs.get('help_str', None)
-        control_props = kwargs.get('control_props', {})
-        category_label = kwargs.get('category_label', None)
-        select = kwargs.get('select', None)
-        fields = kwargs.get('fields', None)
-        hidden = kwargs.get('hidden', None)
-        allow_blanks = kwargs.get('allow_blanks', None)
-        disabled = kwargs.get('disabled', False)
-        dependents = kwargs.get('dependents', None)
+        min_val = kwargs.get("min_val", None)
+        max_val = kwargs.get("max_val", None)
+        options = kwargs.get("options", None)
+        help_str = kwargs.get("help_str", None)
+        control_props = kwargs.get("control_props", {})
+        category_label = kwargs.get("category_label", None)
+        select = kwargs.get("select", None)
+        fields = kwargs.get("fields", None)
+        hidden = kwargs.get("hidden", None)
+        allow_blanks = kwargs.get("allow_blanks", None)
+        disabled = kwargs.get("disabled", False)
+        dependents = kwargs.get("dependents", None)
 
         cat = self.__category(category, category_label)
-        if name in cat['preferences']:
-            return (cat['preferences'])[name]
+        if name in cat["preferences"]:
+            return (cat["preferences"])[name]
 
         assert label is not None, "Label for a preference cannot be none!"
         assert _type is not None, "Type for a preference cannot be none!"
         assert _type in (
-            'boolean', 'integer', 'numeric', 'date', 'datetime',
-            'options', 'multiline', 'switch', 'node', 'text', 'radioModern',
-            'keyboardshortcut', 'select', 'selectFile', 'threshold'
+            "boolean",
+            "integer",
+            "numeric",
+            "date",
+            "datetime",
+            "options",
+            "multiline",
+            "switch",
+            "node",
+            "text",
+            "radioModern",
+            "keyboardshortcut",
+            "select",
+            "selectFile",
+            "threshold",
         ), "Type cannot be found in the defined list!"
 
-        (cat['preferences'])[name] = res = _Preference(
-            cat['id'], name, label, _type, default, help_str=help_str,
-            min_val=min_val, max_val=max_val, options=options,
-            select=select, fields=fields, allow_blanks=allow_blanks,
-            disabled=disabled, dependents=dependents,
-            control_props=control_props, hidden=hidden
+        (cat["preferences"])[name] = res = _Preference(
+            cat["id"],
+            name,
+            label,
+            _type,
+            default,
+            help_str=help_str,
+            min_val=min_val,
+            max_val=max_val,
+            options=options,
+            select=select,
+            fields=fields,
+            allow_blanks=allow_blanks,
+            disabled=disabled,
+            dependents=dependents,
+            control_props=control_props,
+            hidden=hidden,
         )
 
         return res
@@ -475,8 +581,8 @@ class Preferences():
         """
         for key in self.categories:
             cat = self.categories[key]
-            if name in cat['preferences']:
-                return (cat['preferences'])[name]
+            if name in cat["preferences"]:
+                return (cat["preferences"])[name]
 
         return None
 
@@ -490,15 +596,16 @@ class Preferences():
         """
         res = []
 
-        for m in Preferences.modules:
-            res.append(Preferences.modules[m].to_json())
+        with Preferences._modules_lock:
+            modules = list(Preferences.modules.values())
+
+        for module in modules:
+            res.append(module.to_json())
 
         return res
 
     @classmethod
-    def register_preference(
-        cls, module, category, name, label, _type, **kwargs
-    ):
+    def register_preference(cls, module, category, name, label, _type, **kwargs):
         """
         register
         Register/Refer a preference in the system for any module.
@@ -512,28 +619,64 @@ class Preferences():
                          boolean, integer, numeric, date, datetime,
                          options, multiline, switch, node
         """
-        default = kwargs.get('default')
-        min_val = kwargs.get('min_val', None)
-        max_val = kwargs.get('max_val', None)
-        options = kwargs.get('options', None)
-        help_str = kwargs.get('help_str', None)
-        control_props = kwargs.get('control_props', None)
-        module_label = kwargs.get('module_label', None)
-        category_label = kwargs.get('category_label', None)
+        default = kwargs.get("default")
+        min_val = kwargs.get("min_val", None)
+        max_val = kwargs.get("max_val", None)
+        options = kwargs.get("options", None)
+        help_str = kwargs.get("help_str", None)
+        control_props = kwargs.get("control_props", None)
+        module_label = kwargs.get("module_label", None)
+        category_label = kwargs.get("category_label", None)
 
-        if module in Preferences.modules:
-            m = Preferences.modules[module]
-            # Update the label (if not defined yet)
-            m.label = m.label or module_label
-        else:
-            m = Preferences(module, module_label)
-
-        return m.register(
-            category, name, label, _type, default, min_val=min_val,
-            max_val=max_val, options=options, help_str=help_str,
-            control_props=control_props,
-            category_label=category_label
+        registration_key = cls._get_registration_cache_key(module, category, name)
+        registration_signature = _build_preference_signature(
+            module,
+            category,
+            name,
+            label,
+            _type,
+            kwargs,
         )
+
+        if cls._is_registration_cache_enabled():
+            with cls._registration_cache_lock:
+                registration_cache = cls._get_registration_hash_cache()
+                if registration_cache.get(registration_key) == registration_signature:
+                    existing_module = cls.module(module, create=False)
+                    if existing_module is not None:
+                        existing_preference = existing_module.preference(name)
+                        if existing_preference is not None:
+                            return existing_preference
+
+        with Preferences._modules_lock:
+            if module in Preferences.modules:
+                m = Preferences.modules[module]
+                # Update the label (if not defined yet)
+                m.label = m.label or module_label
+            else:
+                m = Preferences(module, module_label)
+
+        preference = m.register(
+            category,
+            name,
+            label,
+            _type,
+            default,
+            min_val=min_val,
+            max_val=max_val,
+            options=options,
+            help_str=help_str,
+            control_props=control_props,
+            category_label=category_label,
+        )
+
+        if cls._is_registration_cache_enabled():
+            with cls._registration_cache_lock:
+                registration_cache = cls._get_registration_hash_cache()
+                registration_cache[registration_key] = registration_signature
+                cls._persist_registration_hash_cache()
+
+        return preference
 
     @staticmethod
     def raw_value(_module, _preference, _category=None, _user_id=None):
@@ -547,25 +690,27 @@ class Preferences():
             _category = _module
 
         if _user_id is None:
-            _user_id = getattr(current_user, 'id', None)
+            _user_id = getattr(current_user, "id", None)
             if _user_id is None:
                 return None
 
-        cat = PrefCategoryTbl.query.filter_by(
-            mid=module.id).filter_by(name=_category).first()
+        cat = (
+            PrefCategoryTbl.query.filter_by(mid=module.id)
+            .filter_by(name=_category)
+            .first()
+        )
 
         if cat is None:
             return None
 
-        pref = PrefTable.query.filter_by(
-            name=_preference).filter_by(cid=cat.id).first()
+        pref = PrefTable.query.filter_by(name=_preference).filter_by(cid=cat.id).first()
 
         if pref is None:
             return None
 
-        user_pref = UserPrefTable.query.filter_by(
-            pid=pref.id
-        ).filter_by(uid=_user_id).first()
+        user_pref = (
+            UserPrefTable.query.filter_by(pid=pref.id).filter_by(uid=_user_id).first()
+        )
 
         if user_pref is not None:
             return user_pref.value
@@ -582,12 +727,13 @@ class Preferences():
         :param create: Flag to create Preferences object
         :returns: a Preferences object representing for the module.
         """
-        if name in Preferences.modules:
-            m = Preferences.modules[name]
-            # Update the label (if not defined yet)
-            if m.label is None:
-                m.label = name
-            return m
+        with Preferences._modules_lock:
+            if name in Preferences.modules:
+                m = Preferences.modules[name]
+                # Update the label (if not defined yet)
+                if m.label is None:
+                    m.label = name
+                return m
 
         if create:
             return Preferences(name, None)
@@ -606,15 +752,11 @@ class Preferences():
         :param value: Value for the options
         """
 
-        pref = UserPrefTable.query.filter_by(
-            pid=pid
-        ).filter_by(uid=user_id).first()
+        pref = UserPrefTable.query.filter_by(pid=pid).filter_by(uid=user_id).first()
 
         value = "{}".format(value)
         if pref is None:
-            pref = UserPrefTable(
-                uid=user_id, pid=pid, value=value
-            )
+            pref = UserPrefTable(uid=user_id, pid=pid, value=value)
             db.session.add(pref)
         else:
             pref.value = value
@@ -644,15 +786,15 @@ class Preferences():
         m = cls.modules[module.name]
 
         if m is None:
-            return False, gettext(
-                "Module '{0}' is no longer in use."
-            ).format(module.name)
+            return False, gettext("Module '{0}' is no longer in use.").format(
+                module.name
+            )
 
         category = None
 
         for c in m.categories:
             cat = m.categories[c]
-            if cid == cat['id']:
+            if cid == cat["id"]:
                 category = cat
                 break
 
@@ -663,17 +805,15 @@ class Preferences():
 
         preference = None
 
-        for p in category['preferences']:
-            pref = (category['preferences'])[p]
+        for p in category["preferences"]:
+            pref = (category["preferences"])[p]
 
             if pref.pid == pid:
                 preference = pref
                 break
 
         if preference is None:
-            return False, gettext(
-                "Could not find the specified preference."
-            )
+            return False, gettext("Could not find the specified preference.")
 
         try:
             pref.set(value)
@@ -687,9 +827,7 @@ class Preferences():
         """
         This function is used to migrate user preferences.
         """
-        user_prefs = UserPrefTable.query.filter_by(
-            pid=pid
-        )
+        user_prefs = UserPrefTable.query.filter_by(pid=pid)
         for pref in user_prefs:
             pref.value = converter_func(pref.value)
 
@@ -703,7 +841,8 @@ class Preferences():
         """
         try:
             db.session.query(UserPrefTable).filter(
-                UserPrefTable.uid == current_user.id).delete()
+                UserPrefTable.uid == current_user.id
+            ).delete()
             db.session.commit()
         except Exception as e:
             db.session.rollback()

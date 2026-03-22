@@ -9,77 +9,92 @@
 
 """The main pgAdmin module. This handles the application initialisation tasks,
 such as setup of logging, dynamic loading of modules etc."""
-import logging
-import os
-import sys
-import re
+
 import ipaddress
-import traceback
-import shutil
-
-from types import MethodType
-from collections import defaultdict
-from importlib import import_module
-
-from flask import Flask, abort, request, current_app, session, url_for
-from flask_socketio import SocketIO
-from werkzeug.exceptions import HTTPException
-from flask_babel import Babel, gettext
-from flask_babel import gettext as _
-from flask_login import user_logged_in, user_logged_out
-from flask_mail import Mail
-from flask_paranoid import Paranoid
-from flask_security import Security, SQLAlchemyUserDatastore, current_user
-from flask_security.utils import login_user, logout_user
-from flask_migrate import Migrate
-from werkzeug.datastructures import ImmutableDict
-from werkzeug.local import LocalProxy
-from werkzeug.utils import find_modules
-from jinja2 import select_autoescape
-from flask_wtf.csrf import CSRFError
-
-from pgadmin.model import db, Role, Server, SharedServer, ServerGroup, \
-    User, Keys, Version, SCHEMA_VERSION as CURRENT_SCHEMA_VERSION
-from pgadmin.utils import PgAdminModule, driver, KeyManager, heartbeat
-from pgadmin.utils.preferences import Preferences
-from pgadmin.utils.session import create_session_interface, pga_unauthorised
-from pgadmin.utils.versioned_template_loader import VersionedTemplateLoader
-from datetime import timedelta, datetime
-from pgadmin.setup import get_version, set_version, check_db_tables
-from pgadmin.utils.ajax import internal_server_error, make_json_response, \
-    unauthorized
-from pgadmin.utils.csrf import pgCSRFProtect
-from pgadmin import authenticate
-from pgadmin.utils.security_headers import SecurityHeaders
-from pgadmin.utils.constants import KERBEROS, OAUTH2, INTERNAL, LDAP, WEBSERVER
-from jsonformatter import JsonFormatter
+import logging
 
 # Explicitly set the mime-types so that a corrupted windows registry will not
 # affect pgAdmin 4 to be load properly. This will avoid the issues that may
 # occur due to security fix of X_CONTENT_TYPE_OPTIONS = "nosniff".
 import mimetypes
+import os
+import re
+import shutil
+import sys
+import time
+import traceback
+from collections import defaultdict
+from datetime import datetime, timedelta
+from importlib import import_module
+from types import MethodType
 
-mimetypes.add_type('application/javascript', '.js')
-mimetypes.add_type('text/css', '.css')
+from flask import Flask, abort, current_app, request, session, url_for
+from flask_babel import Babel, gettext
+from flask_babel import gettext as _
+from flask_login import user_logged_in, user_logged_out
+from flask_mail import Mail
+from flask_migrate import Migrate
+from flask_paranoid import Paranoid
+from flask_security import Security, SQLAlchemyUserDatastore, current_user
+from flask_security.utils import login_user, logout_user
+from flask_socketio import SocketIO
+from flask_wtf.csrf import CSRFError
+from jinja2 import select_autoescape
+from jsonformatter import JsonFormatter
+from werkzeug.datastructures import ImmutableDict
+from werkzeug.exceptions import HTTPException
+from werkzeug.local import LocalProxy
+from werkzeug.utils import find_modules
+
+from pgadmin import authenticate
+from pgadmin.model import SCHEMA_VERSION as CURRENT_SCHEMA_VERSION
+from pgadmin.model import (
+    Keys,
+    Role,
+    Server,
+    ServerGroup,
+    SharedServer,
+    User,
+    Version,
+    db,
+)
+from pgadmin.setup import check_db_tables, get_version, set_version
+from pgadmin.utils import KeyManager, PgAdminModule, driver, heartbeat
+from pgadmin.utils.ajax import internal_server_error, make_json_response, unauthorized
+from pgadmin.utils.constants import INTERNAL, KERBEROS, LDAP, OAUTH2, WEBSERVER
+from pgadmin.utils.csrf import pgCSRFProtect
+from pgadmin.utils.preferences import Preferences
+from pgadmin.utils.security_headers import SecurityHeaders
+from pgadmin.utils.session import create_session_interface, pga_unauthorised
+from pgadmin.utils.versioned_template_loader import VersionedTemplateLoader
+
+mimetypes.add_type("application/javascript", ".js")
+mimetypes.add_type("text/css", ".css")
 
 
 winreg = None
-if os.name == 'nt':
+if os.name == "nt":
     import winreg
 
-socketio = SocketIO(manage_session=False, async_mode='threading',
-                    logger=False, engineio_logger=False, debug=False,
-                    ping_interval=25, ping_timeout=120)
+socketio = SocketIO(
+    manage_session=False,
+    async_mode="threading",
+    logger=False,
+    engineio_logger=False,
+    debug=False,
+    ping_interval=25,
+    ping_timeout=120,
+)
 
-_INDEX_PATH = 'browser.index'
+_INDEX_PATH = "browser.index"
 
 
 class PgAdmin(Flask):
     def __init__(self, *args, **kwargs):
         # Set the template loader to a postgres-version-aware loader
         self.jinja_options = ImmutableDict(
-            autoescape=select_autoescape(enabled_extensions=('html', 'xml')),
-            loader=VersionedTemplateLoader(self)
+            autoescape=select_autoescape(enabled_extensions=("html", "xml")),
+            loader=VersionedTemplateLoader(self),
         )
         self.logout_hooks = []
         self.before_app_start = []
@@ -89,13 +104,10 @@ class PgAdmin(Flask):
     def find_submodules(self, basemodule):
         try:
             for module_name in find_modules(basemodule, True):
-                if module_name in self.config['MODULE_BLACKLIST']:
-                    self.logger.info(
-                        'Skipping blacklisted module: %s' % module_name
-                    )
+                if module_name in self.config["MODULE_BLACKLIST"]:
+                    self.logger.info("Skipping blacklisted module: %s" % module_name)
                     continue
-                self.logger.info(
-                    'Examining potential module: %s' % module_name)
+                self.logger.info("Examining potential module: %s" % module_name)
                 module = import_module(module_name)
                 for key in list(module.__dict__.keys()):
                     if isinstance(module.__dict__[key], PgAdminModule):
@@ -124,11 +136,9 @@ class PgAdmin(Flask):
         # like 'localhost/pgadmin4' then we have to append '/pgadmin4'
         # into endpoints
         #############################################################
-        wsgi_root_path = ''
-        if url_for(_INDEX_PATH) != '/browser/':
-            wsgi_root_path = url_for(_INDEX_PATH).replace(
-                '/browser/', ''
-            )
+        wsgi_root_path = ""
+        if url_for(_INDEX_PATH) != "/browser/":
+            wsgi_root_path = url_for(_INDEX_PATH).replace("/browser/", "")
 
         def get_full_url_path(url):
             """
@@ -137,7 +147,7 @@ class PgAdmin(Flask):
             return wsgi_root_path + url
 
         # Fetch all endpoints and their respective url
-        for rule in current_app.url_map.iter_rules('static'):
+        for rule in current_app.url_map.iter_rules("static"):
             yield rule.endpoint, get_full_url_path(rule.rule)
 
         for module in self.submodules:
@@ -145,7 +155,7 @@ class PgAdmin(Flask):
                 for rule in current_app.url_map.iter_rules(endpoint):
                     yield rule.endpoint, get_full_url_path(rule.rule)
 
-        yield 'pgadmin.root', wsgi_root_path
+        yield "pgadmin.root", wsgi_root_path
 
     @property
     def menu_items(self):
@@ -155,13 +165,16 @@ class PgAdmin(Flask):
         for module in self.submodules:
             for key, value in module.menu_items.items():
                 menu_items[key].extend(value)
-        menu_items = dict((key, sorted(value, key=attrgetter('priority')))
-                          for key, value in menu_items.items())
+        menu_items = dict(
+            (key, sorted(value, key=attrgetter("priority")))
+            for key, value in menu_items.items()
+        )
         return menu_items
 
     def register_logout_hook(self, module):
-        if hasattr(module, 'on_logout') and \
-                isinstance(getattr(module, 'on_logout'), MethodType):
+        if hasattr(module, "on_logout") and isinstance(
+            getattr(module, "on_logout"), MethodType
+        ):
             self.logout_hooks.append(module)
 
     def register_before_app_start(self, callback):
@@ -185,13 +198,44 @@ current_blueprint = LocalProxy(_find_blueprint)
 def create_app(app_name=None):
     # Configuration settings
     import config
+
     if not app_name:
         app_name = config.APP_NAME
 
     # Check if app is created for CLI operations or Web
     cli_mode = False
-    if app_name.endswith('-cli'):
+    if app_name.endswith("-cli"):
         cli_mode = True
+
+    startup_profile_enabled = getattr(config, "STARTUP_PROFILE_ENABLED", False)
+    startup_timings = []
+    startup_begin = time.perf_counter()
+    startup_last = startup_begin
+
+    def startup_checkpoint(label):
+        nonlocal startup_last
+
+        if not startup_profile_enabled:
+            return
+
+        now = time.perf_counter()
+        duration = now - startup_last
+        total = now - startup_begin
+        startup_timings.append((label, duration, total))
+        startup_last = now
+
+    def log_startup_summary():
+        if not startup_profile_enabled or len(startup_timings) == 0:
+            return
+
+        total = startup_timings[-1][2]
+        app.logger.info("=== Startup Timing Summary ===")
+        for label, duration, _ in sorted(
+            startup_timings, key=lambda entry: entry[1], reverse=True
+        ):
+            percentage = (duration / total * 100.0) if total > 0 else 0
+            app.logger.info("  %-45s %.3fs  (%.1f%%)", label, duration, percentage)
+        app.logger.info("  %-45s %.3fs", "TOTAL", total)
 
     # Only enable password related functionality in server mode.
     if config.SERVER_MODE is True:
@@ -208,15 +252,17 @@ def create_app(app_name=None):
         # Now we'll open change password page in dialog
         # we don't want it to redirect to main page after password
         # change operation so we will open the same password change page again.
-        config.SECURITY_POST_CHANGE_VIEW = 'browser.change_password'
+        config.SECURITY_POST_CHANGE_VIEW = "browser.change_password"
 
     """Create the Flask application, startup logging and dynamically load
     additional modules (blueprints) that are found in this directory."""
-    app = PgAdmin(__name__, static_url_path='/static')
+    app = PgAdmin(__name__, static_url_path="/static")
+    startup_checkpoint("flask_app_created")
     # Removes unwanted whitespace from render_template function
     app.jinja_env.trim_blocks = True
     app.config.from_object(config)
     app.config.update(dict(PROPAGATE_EXCEPTIONS=True))
+    startup_checkpoint("config_loaded")
 
     config.SETTINGS_SCHEMA_VERSION = CURRENT_SCHEMA_VERSION
     ##########################################################################
@@ -228,7 +274,7 @@ def create_app(app_name=None):
     logging.raiseExceptions = False
 
     # Add SQL level logging, and set the base logging level
-    logging.addLevelName(25, 'SQL')
+    logging.addLevelName(25, "SQL")
     app.logger.setLevel(logging.DEBUG)
     app.logger.handlers = []
 
@@ -236,13 +282,13 @@ def create_app(app_name=None):
     # request. Setting the level prevents werkzeug from setting up it's own
     # stream handler thus ensuring all the logging goes through the pgAdmin
     # logger.
-    logger = logging.getLogger('werkzeug')
+    logger = logging.getLogger("werkzeug")
     logger.setLevel(config.CONSOLE_LOG_LEVEL)
 
     # Set SQLITE_PATH to TEST_SQLITE_PATH while running test cases
     if (
-        'PGADMIN_TESTING_MODE' in os.environ and
-        os.environ['PGADMIN_TESTING_MODE'] == '1'
+        "PGADMIN_TESTING_MODE" in os.environ
+        and os.environ["PGADMIN_TESTING_MODE"] == "1"
     ):
         config.SQLITE_PATH = config.TEST_SQLITE_PATH
         config.MASTER_PASSWORD_REQUIRED = False
@@ -251,15 +297,18 @@ def create_app(app_name=None):
     if not cli_mode:
         # Ensure the various working directories exist
         from pgadmin.setup import create_app_data_directory
+
         create_app_data_directory(config)
 
         # File logging
-        from pgadmin.utils.enhanced_log_rotation import \
-            EnhancedRotatingFileHandler
-        fh = EnhancedRotatingFileHandler(config.LOG_FILE,
-                                         config.LOG_ROTATION_SIZE,
-                                         config.LOG_ROTATION_AGE,
-                                         config.LOG_ROTATION_MAX_LOG_FILES)
+        from pgadmin.utils.enhanced_log_rotation import EnhancedRotatingFileHandler
+
+        fh = EnhancedRotatingFileHandler(
+            config.LOG_FILE,
+            config.LOG_ROTATION_SIZE,
+            config.LOG_ROTATION_AGE,
+            config.LOG_ROTATION_MAX_LOG_FILES,
+        )
 
         fh.setLevel(config.FILE_LOG_LEVEL)
 
@@ -286,9 +335,9 @@ def create_app(app_name=None):
     logger.addHandler(ch)
 
     # Log the startup
-    app.logger.info('########################################################')
-    app.logger.info('Starting %s v%s...', config.APP_NAME, config.APP_VERSION)
-    app.logger.info('########################################################')
+    app.logger.info("########################################################")
+    app.logger.info("Starting %s v%s...", config.APP_NAME, config.APP_VERSION)
+    app.logger.info("########################################################")
     app.logger.debug("Python syspath: %s", sys.path)
 
     ##########################################################################
@@ -300,7 +349,7 @@ def create_app(app_name=None):
 
     def get_locale():
         """Get the language for the user."""
-        language = 'en'
+        language = "en"
         if config.SERVER_MODE is False:
             # Get the user language preference from the miscellaneous module
             user_id = None
@@ -311,7 +360,7 @@ def create_app(app_name=None):
                 if user is not None:
                     user_id = user.id
             user_language = Preferences.raw_value(
-                'misc', 'user_language', 'user_interface', user_id
+                "misc", "user_language", "user_interface", user_id
             )
             if user_language is not None:
                 language = user_language
@@ -319,15 +368,13 @@ def create_app(app_name=None):
             # If language is available in get request then return the same
             # otherwise check the session or cookie
             data = request.form
-            if 'language' in data:
-                language = data['language'] or language
-                setattr(session, 'PGADMIN_LANGUAGE', language)
-            elif hasattr(session, 'PGADMIN_LANGUAGE'):
-                language = getattr(session, 'PGADMIN_LANGUAGE', language)
-            elif hasattr(request.cookies, 'PGADMIN_LANGUAGE'):
-                language = getattr(
-                    request.cookies, 'PGADMIN_LANGUAGE', language
-                )
+            if "language" in data:
+                language = data["language"] or language
+                setattr(session, "PGADMIN_LANGUAGE", language)
+            elif hasattr(session, "PGADMIN_LANGUAGE"):
+                language = getattr(session, "PGADMIN_LANGUAGE", language)
+            elif hasattr(request.cookies, "PGADMIN_LANGUAGE"):
+                language = getattr(request.cookies, "PGADMIN_LANGUAGE", language)
 
         return language
 
@@ -335,31 +382,34 @@ def create_app(app_name=None):
     ##########################################################################
     # Setup authentication
     ##########################################################################
-    if config.CONFIG_DATABASE_URI is not None and \
-            len(config.CONFIG_DATABASE_URI) > 0:
-        app.config['SQLALCHEMY_DATABASE_URI'] = config.CONFIG_DATABASE_URI
+    if config.CONFIG_DATABASE_URI is not None and len(config.CONFIG_DATABASE_URI) > 0:
+        app.config["SQLALCHEMY_DATABASE_URI"] = config.CONFIG_DATABASE_URI
     else:
-        app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///{0}?timeout={1}' \
-            .format(config.SQLITE_PATH.replace('\\', '/'),
-                    getattr(config, 'SQLITE_TIMEOUT', 500)
-                    )
+        app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///{0}?timeout={1}".format(
+            config.SQLITE_PATH.replace("\\", "/"),
+            getattr(config, "SQLITE_TIMEOUT", 500),
+        )
 
     # Override USER_DOES_NOT_EXIST and INVALID_PASSWORD messages from flask.
-    app.config['SECURITY_MSG_USER_DOES_NOT_EXIST'] = \
-        app.config['SECURITY_MSG_INVALID_PASSWORD'] = \
-        (gettext("Incorrect username or password."), "error")
-    app.config['SECURITY_PASSWORD_LENGTH_MIN'] = config.PASSWORD_LENGTH_MIN
-    app.config['SECURITY_MSG_UNAUTHORIZED'] = \
-        (gettext("Unauthorised access, permission denied."), "error")
+    app.config["SECURITY_MSG_USER_DOES_NOT_EXIST"] = app.config[
+        "SECURITY_MSG_INVALID_PASSWORD"
+    ] = (gettext("Incorrect username or password."), "error")
+    app.config["SECURITY_PASSWORD_LENGTH_MIN"] = config.PASSWORD_LENGTH_MIN
+    app.config["SECURITY_MSG_UNAUTHORIZED"] = (
+        gettext("Unauthorised access, permission denied."),
+        "error",
+    )
 
     # Create database connection object and mailer
     db.init_app(app)
     Migrate(app, db)
+    startup_checkpoint("database_extensions_initialized")
 
     ##########################################################################
     # Upgrade the schema (if required)
     ##########################################################################
     from config import SQLITE_PATH
+
     from pgadmin.setup import db_upgrade
 
     def backup_db_file():
@@ -368,19 +418,19 @@ def create_app(app_name=None):
         and create new database file with default settings.
         """
         backup_file_name = "{0}.{1}".format(
-            SQLITE_PATH, datetime.now().strftime('%Y%m%d%H%M%S'))
+            SQLITE_PATH, datetime.now().strftime("%Y%m%d%H%M%S")
+        )
         os.rename(SQLITE_PATH, backup_file_name)
-        app.logger.error('Exception in database migration.')
-        app.logger.info('Creating new database file.')
+        app.logger.error("Exception in database migration.")
+        app.logger.info("Creating new database file.")
         try:
             db_upgrade(app)
-            os.environ[
-                'CORRUPTED_DB_BACKUP_FILE'] = backup_file_name
-            app.logger.info('Database migration completed.')
+            os.environ["CORRUPTED_DB_BACKUP_FILE"] = backup_file_name
+            app.logger.info("Database migration completed.")
         except Exception:
-            app.logger.error('Database migration failed')
+            app.logger.error("Database migration failed")
             app.logger.error(traceback.format_exc())
-            raise RuntimeError('Migration failed')
+            raise RuntimeError("Migration failed")
 
     def upgrade_db():
         """
@@ -388,9 +438,9 @@ def create_app(app_name=None):
         """
         try:
             db_upgrade(app)
-            os.environ['CORRUPTED_DB_BACKUP_FILE'] = ''
+            os.environ["CORRUPTED_DB_BACKUP_FILE"] = ""
         except Exception:
-            app.logger.error('Database migration failed')
+            app.logger.error("Database migration failed")
             app.logger.error(traceback.format_exc())
             backup_db_file()
 
@@ -398,15 +448,34 @@ def create_app(app_name=None):
         is_db_error, invalid_tb_names = check_db_tables()
         if is_db_error:
             app.logger.error(
-                'Table(s) {0} are missing in the'
-                ' database'.format(invalid_tb_names))
+                "Table(s) {0} are missing in the" " database".format(invalid_tb_names)
+            )
             backup_db_file()
+
+    schema_check_enabled = getattr(config, "SCHEMA_VERSION_CHECK_ENABLED", True)
+    schema_version_cache = {
+        "loaded": False,
+        "value": None,
+    }
+
+    def get_schema_version_cached():
+        if not schema_check_enabled:
+            return get_version()
+
+        if schema_version_cache["loaded"]:
+            return schema_version_cache["value"]
+
+        schema_version_cache["value"] = get_version()
+        schema_version_cache["loaded"] = True
+        return schema_version_cache["value"]
 
     def run_migration_for_sqlite():
         # Run migration for the first time i.e. create database
         # If version not available, user must have aborted. Tables are not
         # created and so its an empty db
-        if not os.path.exists(SQLITE_PATH) or get_version() == -1:
+        schema_version = get_schema_version_cached()
+
+        if not os.path.exists(SQLITE_PATH) or schema_version == -1:
             # If running in cli mode then don't try to upgrade, just raise
             # the exception
             if not cli_mode:
@@ -414,20 +483,16 @@ def create_app(app_name=None):
             else:
                 if not os.path.exists(SQLITE_PATH):
                     raise FileNotFoundError(
-                        'SQLite database file "' + SQLITE_PATH +
-                        '" does not exists.')
-                raise RuntimeError(
-                    'The configuration database file is not valid.')
+                        'SQLite database file "' + SQLITE_PATH + '" does not exists.'
+                    )
+                raise RuntimeError("The configuration database file is not valid.")
         else:
-            schema_version = get_version()
-
             # Run migration if current schema version is greater than the
             # schema version stored in version table
             if CURRENT_SCHEMA_VERSION > schema_version:
                 # Take a backup of the old database file.
                 try:
-                    prev_database_file_name = \
-                        "{0}.prev.bak".format(SQLITE_PATH)
+                    prev_database_file_name = "{0}.prev.bak".format(SQLITE_PATH)
                     shutil.copyfile(SQLITE_PATH, prev_database_file_name)
                 except Exception as e:
                     app.logger.error(e)
@@ -438,27 +503,31 @@ def create_app(app_name=None):
                 is_db_error, invalid_tb_names = check_db_tables()
                 if is_db_error:
                     app.logger.error(
-                        'Table(s) {0} are missing in the'
-                        ' database'.format(invalid_tb_names))
+                        "Table(s) {0} are missing in the" " database".format(
+                            invalid_tb_names
+                        )
+                    )
                     backup_db_file()
 
             # Update schema version to the latest
             if CURRENT_SCHEMA_VERSION > schema_version:
                 set_version(CURRENT_SCHEMA_VERSION)
                 db.session.commit()
+                schema_version_cache["loaded"] = True
+                schema_version_cache["value"] = CURRENT_SCHEMA_VERSION
 
-        if os.name != 'nt':
+        if os.name != "nt":
             os.chmod(config.SQLITE_PATH, 0o600)
 
     def run_migration_for_others():
         # Run migration for the first time i.e. create database
         # If version not available, user must have aborted. Tables are not
         # created and so its an empty db
-        if get_version() == -1:
+        schema_version = get_schema_version_cached()
+
+        if schema_version == -1:
             db_upgrade(app)
         else:
-            schema_version = get_version()
-
             # Run migration if current schema version is greater than
             # the schema version stored in version table.
             if CURRENT_SCHEMA_VERSION > schema_version:
@@ -466,25 +535,31 @@ def create_app(app_name=None):
                 # Update schema version to the latest
                 set_version(CURRENT_SCHEMA_VERSION)
                 db.session.commit()
+                schema_version_cache["loaded"] = True
+                schema_version_cache["value"] = CURRENT_SCHEMA_VERSION
 
-    from pgadmin.browser.server_groups.servers.utils import (
-        delete_adhoc_servers)
+    from pgadmin.browser.server_groups.servers.utils import delete_adhoc_servers
+
     with app.app_context():
         # Run the migration as per specified by the user.
-        if config.CONFIG_DATABASE_URI is not None and \
-                len(config.CONFIG_DATABASE_URI) > 0:
+        if (
+            config.CONFIG_DATABASE_URI is not None
+            and len(config.CONFIG_DATABASE_URI) > 0
+        ):
             run_migration_for_others()
         else:
             run_migration_for_sqlite()
 
         # Delete all the adhoc(temporary) servers from the pgAdmin database.
         delete_adhoc_servers()
+    startup_checkpoint("database_migration_completed")
 
     Mail(app)
 
     # Don't bother paths when running in cli mode
     if not cli_mode:
         from pgadmin.utils import paths
+
         paths.init_app()
 
     # Setup Flask-Security
@@ -495,51 +570,58 @@ def create_app(app_name=None):
     # Setup security
     ##########################################################################
     with app.app_context():
-        config.CSRF_SESSION_KEY = Keys.query.filter_by(
-            name='CSRF_SESSION_KEY').first().value
-        config.SECRET_KEY = Keys.query.filter_by(
-            name='SECRET_KEY').first().value
-        config.SECURITY_PASSWORD_SALT = Keys.query.filter_by(
-            name='SECURITY_PASSWORD_SALT').first().value
+        config.CSRF_SESSION_KEY = (
+            Keys.query.filter_by(name="CSRF_SESSION_KEY").first().value
+        )
+        config.SECRET_KEY = Keys.query.filter_by(name="SECRET_KEY").first().value
+        config.SECURITY_PASSWORD_SALT = (
+            Keys.query.filter_by(name="SECURITY_PASSWORD_SALT").first().value
+        )
 
     # Update the app.config with proper security keyes for signing CSRF data,
     # signing cookies, and the SALT for hashing the passwords.
-    app.config.update(dict({
-        'CSRF_SESSION_KEY': config.CSRF_SESSION_KEY,
-        'SECRET_KEY': config.SECRET_KEY,
-        'SECURITY_PASSWORD_SALT': config.SECURITY_PASSWORD_SALT,
-        'SESSION_COOKIE_DOMAIN': config.SESSION_COOKIE_DOMAIN,
-        # CSRF Token expiration till session expires
-        'WTF_CSRF_TIME_LIMIT': getattr(config, 'CSRF_TIME_LIMIT', None),
-        'WTF_CSRF_METHODS': ['GET', 'POST', 'PUT', 'DELETE'],
-        # Disable deliverable check for email addresss
-        'SECURITY_EMAIL_VALIDATOR_ARGS': config.SECURITY_EMAIL_VALIDATOR_ARGS,
-        # Disable CSRF for unauthenticated endpoints
-        'SECURITY_CSRF_IGNORE_UNAUTH_ENDPOINTS': True
-    }))
+    app.config.update(
+        dict(
+            {
+                "CSRF_SESSION_KEY": config.CSRF_SESSION_KEY,
+                "SECRET_KEY": config.SECRET_KEY,
+                "SECURITY_PASSWORD_SALT": config.SECURITY_PASSWORD_SALT,
+                "SESSION_COOKIE_DOMAIN": config.SESSION_COOKIE_DOMAIN,
+                # CSRF Token expiration till session expires
+                "WTF_CSRF_TIME_LIMIT": getattr(config, "CSRF_TIME_LIMIT", None),
+                "WTF_CSRF_METHODS": ["GET", "POST", "PUT", "DELETE"],
+                # Disable deliverable check for email addresss
+                "SECURITY_EMAIL_VALIDATOR_ARGS": config.SECURITY_EMAIL_VALIDATOR_ARGS,
+                # Disable CSRF for unauthenticated endpoints
+                "SECURITY_CSRF_IGNORE_UNAUTH_ENDPOINTS": True,
+            }
+        )
+    )
 
-    app.config.update(dict({
-        'INTERNAL': INTERNAL,
-        'LDAP': LDAP,
-        'KERBEROS': KERBEROS,
-        'OAUTH2': OAUTH2,
-        'WEBSERVER': WEBSERVER
-    }))
+    app.config.update(
+        dict(
+            {
+                "INTERNAL": INTERNAL,
+                "LDAP": LDAP,
+                "KERBEROS": KERBEROS,
+                "OAUTH2": OAUTH2,
+                "WEBSERVER": WEBSERVER,
+            }
+        )
+    )
 
     security.init_app(app, user_datastore)
+    startup_checkpoint("security_initialized")
 
     # Flask-Security-Too > 5.4.* requires custom unauth handeler
     # to be registeres with it.
     security.unauthn_handler(pga_unauthorised)
 
     # Set the permanent session lifetime to the specified value in config file.
-    app.permanent_session_lifetime = timedelta(
-        days=config.SESSION_EXPIRATION_TIME)
+    app.permanent_session_lifetime = timedelta(days=config.SESSION_EXPIRATION_TIME)
 
     if not cli_mode:
-        app.session_interface = create_session_interface(
-            app, config.SESSION_SKIP_PATHS
-        )
+        app.session_interface = create_session_interface(app, config.SESSION_SKIP_PATHS)
 
     # Make the Session more secure against XSS & CSRF when running in web mode
     if config.SERVER_MODE and config.ENHANCED_COOKIE_PROTECTION:
@@ -552,6 +634,7 @@ def create_app(app_name=None):
     driver.init_app(app)
     authenticate.init_app(app)
     heartbeat.init_app(app)
+    startup_checkpoint("core_services_initialized")
 
     ##########################################################################
     # Register language to the preferences after login
@@ -561,14 +644,12 @@ def create_app(app_name=None):
         # After logged in, set the language in the preferences if we get from
         # the login page
         data = request.form
-        if 'language' in data:
-            language = data['language']
+        if "language" in data:
+            language = data["language"]
 
             # Set the user language preference
-            misc_preference = Preferences.module('misc')
-            user_languages = misc_preference.preference(
-                'user_language'
-            )
+            misc_preference = Preferences.module("misc")
+            user_languages = misc_preference.preference("user_language")
 
             if user_languages and language:
                 language = user_languages.set(language)
@@ -578,7 +659,6 @@ def create_app(app_name=None):
     ##########################################################################
     @user_logged_in.connect_via(app)
     def on_user_logged_in(sender, user):
-
         # If Auto Discover servers is turned off then return from the
         # function.
         if not config.AUTO_DISCOVER_SERVERS:
@@ -589,38 +669,37 @@ def create_app(app_name=None):
 
         # Get the first server group for the user
         servergroup_id = 1
-        servergroups = ServerGroup.query.filter_by(
-            user_id=user_id
-        ).order_by("id")
+        servergroups = ServerGroup.query.filter_by(user_id=user_id).order_by("id")
 
         if int(servergroups.count()) > 0:
             servergroup = servergroups.first()
             servergroup_id = servergroup.id
 
-        '''Add a server to the config database'''
+        """Add a server to the config database"""
 
-        def add_server(user_id, servergroup_id, name, superuser, port,
-                       discovery_id, comment):
+        def add_server(
+            user_id, servergroup_id, name, superuser, port, discovery_id, comment
+        ):
             # Create a server object if needed, and store it.
             servers = Server.query.filter_by(
-                user_id=user_id,
-                discovery_id=svr_discovery_id
+                user_id=user_id, discovery_id=svr_discovery_id
             ).order_by("id")
 
             if int(servers.count()) > 0:
                 return
 
-            svr = Server(user_id=user_id,
-                         servergroup_id=servergroup_id,
-                         name=name,
-                         host='localhost',
-                         port=port,
-                         maintenance_db='postgres',
-                         username=superuser,
-                         connection_params={'sslmode': 'prefer',
-                                            'connect_timeout': 10},
-                         comment=comment,
-                         discovery_id=discovery_id)
+            svr = Server(
+                user_id=user_id,
+                servergroup_id=servergroup_id,
+                name=name,
+                host="localhost",
+                port=port,
+                maintenance_db="postgres",
+                username=superuser,
+                connection_params={"sslmode": "prefer", "connect_timeout": 10},
+                comment=comment,
+                discovery_id=discovery_id,
+            )
 
             db.session.add(svr)
             db.session.commit()
@@ -628,53 +707,54 @@ def create_app(app_name=None):
         # Figure out what servers are present
         if winreg is not None:
             arch_keys = set()
-            proc_arch = os.environ['PROCESSOR_ARCHITECTURE'].lower()
+            proc_arch = os.environ["PROCESSOR_ARCHITECTURE"].lower()
 
             try:
-                proc_arch64 = os.environ['PROCESSOR_ARCHITEW6432'].lower()
+                proc_arch64 = os.environ["PROCESSOR_ARCHITEW6432"].lower()
             except Exception:
                 proc_arch64 = None
 
-            if proc_arch == 'x86' and not proc_arch64:
+            if proc_arch == "x86" and not proc_arch64:
                 arch_keys.add(0)
-            elif proc_arch == 'x86' or proc_arch == 'amd64':
+            elif proc_arch == "x86" or proc_arch == "amd64":
                 arch_keys.add(winreg.KEY_WOW64_32KEY)
                 arch_keys.add(winreg.KEY_WOW64_64KEY)
 
             for arch_key in arch_keys:
-                for server_type in ('PostgreSQL', 'EnterpriseDB'):
+                for server_type in ("PostgreSQL", "EnterpriseDB"):
                     try:
                         root_key = winreg.OpenKey(
                             winreg.HKEY_LOCAL_MACHINE,
-                            "SOFTWARE\\" + server_type + "\\Services", 0,
-                            winreg.KEY_READ | arch_key
+                            "SOFTWARE\\" + server_type + "\\Services",
+                            0,
+                            winreg.KEY_READ | arch_key,
                         )
                         for i in range(0, winreg.QueryInfoKey(root_key)[0]):
                             inst_id = winreg.EnumKey(root_key, i)
                             inst_key = winreg.OpenKey(root_key, inst_id)
 
-                            svr_name = winreg.QueryValueEx(
-                                inst_key, 'Display Name'
-                            )[0]
+                            svr_name = winreg.QueryValueEx(inst_key, "Display Name")[0]
                             svr_superuser = winreg.QueryValueEx(
-                                inst_key, 'Database Superuser'
+                                inst_key, "Database Superuser"
                             )[0]
-                            svr_port = winreg.QueryValueEx(inst_key, 'Port')[0]
+                            svr_port = winreg.QueryValueEx(inst_key, "Port")[0]
                             svr_discovery_id = inst_id
                             svr_comment = gettext(
                                 "Auto-detected {0} installation with the data "
-                                "directory at {1}").format(
-                                    winreg.QueryValueEx(
-                                        inst_key, 'Display Name'
-                                    )[0],
-                                    winreg.QueryValueEx(
-                                        inst_key, 'Data Directory'
-                                    )[0])
+                                "directory at {1}"
+                            ).format(
+                                winreg.QueryValueEx(inst_key, "Display Name")[0],
+                                winreg.QueryValueEx(inst_key, "Data Directory")[0],
+                            )
 
                             add_server(
-                                user_id, servergroup_id, svr_name,
-                                svr_superuser, svr_port,
-                                svr_discovery_id, svr_comment
+                                user_id,
+                                servergroup_id,
+                                svr_name,
+                                svr_superuser,
+                                svr_port,
+                                svr_discovery_id,
+                                svr_comment,
                             )
 
                             inst_key.Close()
@@ -687,36 +767,42 @@ def create_app(app_name=None):
             registry = ConfigParser()
 
         try:
-            registry.read('/etc/postgres-reg.ini')
+            registry.read("/etc/postgres-reg.ini")
             sections = registry.sections()
 
             # Loop the sections, and get the data from any that are PG or PPAS
             for section in sections:
-                if (
-                    section.startswith('PostgreSQL/') or
-                    section.startswith('EnterpriseDB/')
+                if section.startswith("PostgreSQL/") or section.startswith(
+                    "EnterpriseDB/"
                 ):
-                    svr_name = registry.get(section, 'Description')
-                    svr_superuser = registry.get(section, 'Superuser')
+                    svr_name = registry.get(section, "Description")
+                    svr_superuser = registry.get(section, "Superuser")
 
                     # getint function throws exception if value is blank.
                     # Ex: Port=
                     # In such case we should handle the exception and continue
                     # to read the next section of the config file.
                     try:
-                        svr_port = registry.getint(section, 'Port')
+                        svr_port = registry.getint(section, "Port")
                     except ValueError:
                         continue
 
                     svr_discovery_id = section
-                    description = registry.get(section, 'Description')
-                    data_directory = registry.get(section, 'DataDirectory')
-                    svr_comment = gettext("Auto-detected {0} installation "
-                                          "with the data directory at {1}"
-                                          ).format(description, data_directory)
-                    add_server(user_id, servergroup_id, svr_name,
-                               svr_superuser, svr_port, svr_discovery_id,
-                               svr_comment)
+                    description = registry.get(section, "Description")
+                    data_directory = registry.get(section, "DataDirectory")
+                    svr_comment = gettext(
+                        "Auto-detected {0} installation "
+                        "with the data directory at {1}"
+                    ).format(description, data_directory)
+                    add_server(
+                        user_id,
+                        servergroup_id,
+                        svr_name,
+                        svr_superuser,
+                        svr_port,
+                        svr_discovery_id,
+                        svr_comment,
+                    )
 
         except Exception as e:
             print(str(e))
@@ -731,14 +817,15 @@ def create_app(app_name=None):
     def store_crypt_key(app, user):
         # in desktop mode, master password is used to encrypt/decrypt
         # and is stored in the keyManager memory
-        if config.SERVER_MODE and 'password' in request.form:
-            current_app.keyManager.set(request.form['password'])
+        if config.SERVER_MODE and "password" in request.form:
+            current_app.keyManager.set(request.form["password"])
 
     @user_logged_out.connect_via(app)
     def current_user_cleanup(app, user):
         from config import PG_DEFAULT_DRIVER
-        from pgadmin.utils.driver import get_driver
         from flask import current_app
+
+        from pgadmin.utils.driver import get_driver
 
         for mdl in current_app.logout_hooks:
             try:
@@ -756,11 +843,24 @@ def create_app(app_name=None):
     # Load plugin modules
     ##########################################################################
     from .submodules import get_submodules
-    for module in get_submodules():
-        app.logger.info('Registering blueprint module: %s' % module)
+
+    lazy_module_loading_enabled = getattr(config, "LAZY_MODULE_LOADING_ENABLED", True)
+    parallel_init_enabled = getattr(config, "PARALLEL_INIT_ENABLED", False)
+    parallel_init_workers = max(1, int(getattr(config, "PARALLEL_INIT_WORKERS", 4)))
+
+    if not lazy_module_loading_enabled:
+        from .submodules import preload_all_submodules
+
+        preload_all_submodules()
+
+    for module in get_submodules(
+        parallel=parallel_init_enabled, max_workers=parallel_init_workers
+    ):
+        app.logger.info("Registering blueprint module: %s" % module)
         if app.blueprints.get(module.name) is None:
             app.register_blueprint(module)
             app.register_logout_hook(module)
+    startup_checkpoint("plugin_modules_registered")
 
     @app.before_request
     def limit_host_addr():
@@ -769,32 +869,27 @@ def create_app(app_name=None):
         HTTP request to avoid Host Header Injection attack
         :return: None/JSON response with 403 HTTP status code
         """
-        client_host = str(request.host).split(':', maxsplit=1)[0]
+        client_host = str(request.host).split(":", maxsplit=1)[0]
         valid = True
         allowed_hosts = config.ALLOWED_HOSTS
 
         if len(allowed_hosts) != 0:
-            regex = re.compile(
-                r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}(?:/\d{1,2}|)')
+            regex = re.compile(r"\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}(?:/\d{1,2}|)")
             # Create separate list for ip addresses and host names
             ip_set = list(filter(lambda ip: regex.match(ip), allowed_hosts))
-            host_set = list(filter(lambda ip: not regex.match(ip),
-                                   allowed_hosts))
+            host_set = list(filter(lambda ip: not regex.match(ip), allowed_hosts))
             is_ip = regex.match(client_host)
             if is_ip:
                 ip_address = []
                 for ip in ip_set:
                     ip_address.extend(list(ipaddress.ip_network(ip)))
-                valid = ip_address.__contains__(
-                    ipaddress.ip_address(client_host)
-                )
+                valid = ip_address.__contains__(ipaddress.ip_address(client_host))
             else:
                 valid = host_set.__contains__(client_host)
 
         if not valid:
             return make_json_response(
-                status=403, success=0,
-                errormsg=_("403 FORBIDDEN")
+                status=403, success=0, errormsg=_("403 FORBIDDEN")
             )
 
     ##########################################################################
@@ -808,11 +903,17 @@ def create_app(app_name=None):
         # Check the auth key is valid, if it's set, and we're not in server
         # mode, and it's not a help file request.
 
-        if not config.SERVER_MODE and app.PGADMIN_INT_KEY != '' and ((
-            'key' not in request.args or
-            request.args['key'] != app.PGADMIN_INT_KEY) and
-            request.cookies.get('PGADMIN_INT_KEY') != app.PGADMIN_INT_KEY and
-            request.endpoint != 'help.static'
+        if (
+            not config.SERVER_MODE
+            and app.PGADMIN_INT_KEY != ""
+            and (
+                (
+                    "key" not in request.args
+                    or request.args["key"] != app.PGADMIN_INT_KEY
+                )
+                and request.cookies.get("PGADMIN_INT_KEY") != app.PGADMIN_INT_KEY
+                and request.endpoint != "help.static"
+            )
         ):
             abort(401)
 
@@ -823,40 +924,50 @@ def create_app(app_name=None):
             # that'll through a nice 500 error for us.
             if user is None:
                 app.logger.error(
-                    'The desktop user %s was not found in the configuration '
-                    'database.'
-                    % config.DESKTOP_USER
+                    "The desktop user %s was not found in the configuration "
+                    "database." % config.DESKTOP_USER
                 )
                 abort(401)
             login_user(user)
-        elif config.SERVER_MODE and not current_user.is_authenticated and \
-                request.endpoint in ('redirects.index', 'security.login') and \
-                app.PGADMIN_EXTERNAL_AUTH_SOURCE in [KERBEROS, WEBSERVER]:
+        elif (
+            config.SERVER_MODE
+            and not current_user.is_authenticated
+            and request.endpoint in ("redirects.index", "security.login")
+            and app.PGADMIN_EXTERNAL_AUTH_SOURCE in [KERBEROS, WEBSERVER]
+        ):
             return authenticate.login()
         # if the server is restarted the in memory key will be lost
         # but the user session may still be active. Logout the user
         # to get the key again when login
-        if config.SERVER_MODE and current_user.is_authenticated and \
-            'auth_source_manager' in session and \
-            session['auth_source_manager']['current_source'] not in \
-            [KERBEROS, OAUTH2, WEBSERVER] and \
-                current_app.keyManager.get() is None and \
-                request.endpoint not in ('security.login', 'security.logout'):
+        if (
+            config.SERVER_MODE
+            and current_user.is_authenticated
+            and "auth_source_manager" in session
+            and session["auth_source_manager"]["current_source"]
+            not in [KERBEROS, OAUTH2, WEBSERVER]
+            and current_app.keyManager.get() is None
+            and request.endpoint not in ("security.login", "security.logout")
+        ):
             logout_user()
 
     @app.after_request
     def after_request(response):
-        if 'key' in request.args:
+        if "key" in request.args:
             domain = dict()
-            if config.COOKIE_DEFAULT_DOMAIN and \
-                    config.COOKIE_DEFAULT_DOMAIN != 'localhost':
-                domain['domain'] = config.COOKIE_DEFAULT_DOMAIN
-            response.set_cookie('PGADMIN_INT_KEY', value=request.args['key'],
-                                path=config.SESSION_COOKIE_PATH,
-                                secure=config.SESSION_COOKIE_SECURE,
-                                httponly=config.SESSION_COOKIE_HTTPONLY,
-                                samesite=config.SESSION_COOKIE_SAMESITE,
-                                **domain)
+            if (
+                config.COOKIE_DEFAULT_DOMAIN
+                and config.COOKIE_DEFAULT_DOMAIN != "localhost"
+            ):
+                domain["domain"] = config.COOKIE_DEFAULT_DOMAIN
+            response.set_cookie(
+                "PGADMIN_INT_KEY",
+                value=request.args["key"],
+                path=config.SESSION_COOKIE_PATH,
+                secure=config.SESSION_COOKIE_SECURE,
+                httponly=config.SESSION_COOKIE_HTTPONLY,
+                samesite=config.SESSION_COOKIE_SAMESITE,
+                **domain,
+            )
 
         SecurityHeaders.set_response_headers(response)
         return response
@@ -874,19 +985,16 @@ def create_app(app_name=None):
         extensions = config.APP_VERSION_EXTN
 
         # Add the internal version only if it is set
-        if config.APP_VERSION_PARAM is not None and \
-           config.APP_VERSION_PARAM != '':
+        if config.APP_VERSION_PARAM is not None and config.APP_VERSION_PARAM != "":
             # If there is a filename, add the version
-            if 'filename' in values \
-               and values['filename'].endswith(extensions):
+            if "filename" in values and values["filename"].endswith(extensions):
                 values[config.APP_VERSION_PARAM] = config.APP_VERSION_INT
             else:
                 # Sometimes there may be direct endpoint for some files
                 # There will be only one rule for such endpoints
                 urls = [url for url in app.url_map.iter_rules(endpoint)]
                 if len(urls) == 1 and urls[0].rule.endswith(extensions):
-                    values[config.APP_VERSION_PARAM] = \
-                        config.APP_VERSION_INT
+                    values[config.APP_VERSION_PARAM] = config.APP_VERSION_INT
 
     # Strip away internal version param before sending further to app as it was
     # required for cache busting only
@@ -900,6 +1008,7 @@ def create_app(app_name=None):
     ##########################################################################
     if not config.DEBUG and config.SERVER_MODE:
         from flask_compress import Compress
+
         Compress(app)
 
     @app.context_processor
@@ -909,8 +1018,8 @@ def create_app(app_name=None):
         """
 
         return {
-            'current_app': current_app,
-            'current_blueprint': current_blueprint,
+            "current_app": current_app,
+            "current_blueprint": current_blueprint,
         }
 
     @app.errorhandler(Exception)
@@ -929,8 +1038,7 @@ def create_app(app_name=None):
     # Send unauthorized response if CSRF errors occurs.
     @app.errorhandler(CSRFError)
     def handle_csrf_error(error):
-        err_msg = str(error.description) + \
-            gettext(' You need to refresh the page.')
+        err_msg = str(error.description) + gettext(" You need to refresh the page.")
         return unauthorized(errormsg=err_msg)
 
     # Initialize the key manager
@@ -941,9 +1049,12 @@ def create_app(app_name=None):
     ##########################################################################
     with app.app_context():
         pgCSRFProtect.init_app(app)
+    startup_checkpoint("csrf_initialized")
 
     ##########################################################################
     # All done!
     ##########################################################################
     socketio.init_app(app, cors_allowed_origins="*")
+    startup_checkpoint("socketio_initialized")
+    log_startup_summary()
     return app
